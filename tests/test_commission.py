@@ -634,14 +634,19 @@ class CommissionTests(unittest.TestCase):
 
     def test_safe_output_redacts_structured_secret_values(self) -> None:
         sentinel = "s3nt1nel-private-material-662"
-        output = commission_module._safe_output(
+        flat = commission_module._safe_output(
             f'{{"session_token": "{sentinel}", "authorization": "Bearer {sentinel}"}}',
             "inventory",
         )
+        nested = commission_module._safe_output(
+            f'{{"session_token": {{"value": "{sentinel}"}}}}',
+            "inventory",
+        )
 
-        self.assertNotIn(sentinel, output)
+        self.assertNotIn(sentinel, flat)
+        self.assertNotIn(sentinel, nested)
         self.assertEqual(
-            output,
+            flat,
             '{"session_token": <redacted>, "authorization": "Bearer <redacted>"}',
         )
 
