@@ -340,8 +340,32 @@ def _applicability(assertion: Assertion, context: Context) -> Applicability:
     return Applicability(True, None, True)
 
 
+def _redact_structured(value: object) -> object:
+    if isinstance(value, dict):
+        redacted: dict[str, object] = {}
+        for key, item in value.items():
+            normalized = re.sub(r"[^a-z0-9]", "", str(key).lower())
+            if any(
+                marker in normalized
+                for marker in ("token", "secret", "password", "apikey")
+            ):
+                redacted[str(key)] = "<redacted>"
+            else:
+                redacted[str(key)] = _redact_structured(item)
+        return redacted
+    if isinstance(value, list):
+        return [_redact_structured(item) for item in value]
+    return value
+
+
 def _safe_output(text: str, assertion_id: str) -> str:
     text = text.replace("\x00", "")
+    try:
+        structured = json.loads(text)
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        pass
+    else:
+        text = json.dumps(_redact_structured(structured))
     if ".executor." in assertion_id:
         text = re.sub(r"https?://\S+", "<redacted-url>", text)
     text = re.sub(
