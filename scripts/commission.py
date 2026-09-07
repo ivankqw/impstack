@@ -916,7 +916,10 @@ def _load_wizard_template(path: pathlib.Path) -> str:
         raise ValueError("wizard template is missing; install the wizard skill")
     template = path.read_text()
     for helper in WIZARD_HELPERS:
-        if re.search(rf"(?m)^{re.escape(helper)}\s*\(\)\s*\{{", template) is None:
+        if re.search(
+            rf"(?m)^(?:function\s+)?{re.escape(helper)}\s*\(\)\s*\{{",
+            template,
+        ) is None:
             raise ValueError(f"wizard template is missing helper: {helper}")
     return template
 
