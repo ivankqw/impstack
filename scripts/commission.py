@@ -500,6 +500,7 @@ def evaluate(assertions: Sequence[Assertion], context: Context) -> Report:
                 or (
                     assertion.stdout_contains is not None
                     and assertion.stdout_contains not in evidence.stdout
+                    and bool(evidence.stdout.strip())
                 )
             )
             and (
