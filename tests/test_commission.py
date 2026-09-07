@@ -801,13 +801,25 @@ class CommissionTests(unittest.TestCase):
             )
         )
 
-        result = self.run_commission(
-            "check", env=self.environment(XDG_STATE_HOME=relative)
+        result = subprocess.run(
+            [
+                str(COMMISSION),
+                "check",
+                "--repo",
+                str(self.repo),
+                "--home",
+                str(self.home),
+            ],
+            cwd=self.sandbox,
+            env=self.environment(XDG_STATE_HOME=relative),
+            text=True,
+            capture_output=True,
+            check=False,
         )
 
         self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
         self.assertFalse((self.repo / relative).exists())
-        self.assertTrue((self.home / relative).is_dir())
+        self.assertTrue((self.sandbox / relative).is_dir())
 
     def test_safe_output_redacts_structured_secret_values(self) -> None:
         sentinel = "s3nt1nel-private-material-662"
