@@ -872,6 +872,37 @@ class CommissionTests(unittest.TestCase):
             1,
         )
 
+    def test_selected_home_controls_tilde_state_paths(self) -> None:
+        process_home = self.sandbox / "process-home"
+        process_home.mkdir()
+
+        result = self.run_commission(
+            "probe",
+            env=self.environment(
+                HOME=str(process_home),
+                SHARED_SKILLS="~/shared",
+                XDG_STATE_HOME="~/state",
+            ),
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        self.assertFalse((process_home / "shared").exists())
+        self.assertFalse((process_home / "state").exists())
+        self.assertEqual(
+            len(tuple((self.home / "shared").glob("machine-*/SKILL.md"))),
+            1,
+        )
+
+    def test_relative_state_paths_cannot_escape_selected_home(self) -> None:
+        result = self.run_commission(
+            "probe",
+            env=self.environment(SHARED_SKILLS="../outside"),
+        )
+
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("relative user-state path escapes home", result.stderr)
+        self.assertFalse((self.sandbox / "outside").exists())
+
     def test_safe_output_redacts_structured_secret_values(self) -> None:
         sentinel = "s3nt1nel-private-material-662"
         flat = commission_module._safe_output(

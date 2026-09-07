@@ -1009,6 +1009,46 @@ class SkillMetadataTest(unittest.TestCase):
                 (home / relative / "impstack/instructions.json").is_file()
             )
 
+    def test_managed_instructions_uses_selected_home_for_xdg(self) -> None:
+        cases = (
+            ("", pathlib.Path(".local/state")),
+            ("~/state", pathlib.Path("state")),
+        )
+        for configured, expected in cases:
+            with self.subTest(configured=configured), tempfile.TemporaryDirectory() as temp:
+                root = pathlib.Path(temp)
+                home = root / "selected-home"
+                process_home = root / "process-home"
+                home.mkdir()
+                process_home.mkdir()
+                env = os.environ.copy()
+                env["HOME"] = str(process_home)
+                env["XDG_STATE_HOME"] = configured
+
+                result = subprocess.run(
+                    [
+                        "/usr/bin/python3",
+                        str(ROOT / "scripts/managed_instructions.py"),
+                        "--root",
+                        str(ROOT),
+                        "--home",
+                        str(home),
+                        "--private",
+                        str(root / "missing-private"),
+                    ],
+                    cwd=root,
+                    env=env,
+                    text=True,
+                    capture_output=True,
+                    check=False,
+                )
+
+                self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+                self.assertTrue(
+                    (home / expected / "impstack/instructions.json").is_file()
+                )
+                self.assertFalse(any(process_home.rglob("instructions.json")))
+
     def test_instruction_pair_is_written_before_the_state_commit(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = pathlib.Path(temp)

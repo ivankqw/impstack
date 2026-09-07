@@ -802,6 +802,21 @@ class SkillsSyncTests(unittest.TestCase):
             expected_lock,
         )
 
+    def test_relative_skill_state_path_cannot_escape_home(self) -> None:
+        _, home = self.make_home()
+        repo = pathlib.Path(tempfile.mkdtemp())
+        self.addCleanup(lambda: shutil.rmtree(repo))
+
+        result = self.run_cli(
+            repo,
+            home,
+            "resolve-shared",
+            env_overrides={"SHARED_SKILLS": "../outside"},
+        )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("relative user-state path escapes home", result.stderr)
+
     def test_node_resolution_sorts_manager_versions_numerically(self) -> None:
         _, home = self.make_home()
         repo = pathlib.Path(tempfile.mkdtemp())
