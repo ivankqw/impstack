@@ -679,6 +679,23 @@ class CommissionTests(unittest.TestCase):
         self.assertEqual(wizard_backup.stat().st_mode & 0o777, 0o700)
         self.assertIn("--force", result.stderr)
 
+    def test_probe_protects_empty_existing_artifacts(self) -> None:
+        record = self.sandbox / "record.md"
+        wizard = self.sandbox / "wizard.sh"
+        record.write_bytes(b"")
+        wizard.write_bytes(b"")
+
+        result = self.run_commission(
+            "probe", "--record", str(record), "--wizard", str(wizard)
+        )
+
+        self.assertEqual(result.returncode, 2)
+        self.assertEqual(record.read_bytes(), b"")
+        self.assertEqual(wizard.read_bytes(), b"")
+        self.assertEqual(len(tuple(self.sandbox.glob("record.md.impstack-backup.*"))), 1)
+        self.assertEqual(len(tuple(self.sandbox.glob("wizard.sh.impstack-backup.*"))), 1)
+        self.assertIn("--force", result.stderr)
+
     def test_probe_force_replaces_backed_up_artifacts(self) -> None:
         record = self.sandbox / "record.md"
         wizard = self.sandbox / "wizard.sh"
