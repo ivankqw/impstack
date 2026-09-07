@@ -86,7 +86,9 @@ I write a skill when no upstream skill covers the job.
 | skill | job |
 |---|---|
 | [`cleanup-crew`](skills/cleanup-crew/SKILL.md) | Keep the issue tracker aligned with current work. |
+| [`commission`](skills/commission/SKILL.md) | Probe a machine, check its fixed contract, and write its local record. |
 | [`dogfood-local`](skills/dogfood-local/SKILL.md) | Run a local app and verify the real user path. |
+| [`recommission`](skills/recommission/SKILL.md) | Re-probe a machine record and ship at most one proven correction. |
 
 </details>
 
