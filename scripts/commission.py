@@ -876,6 +876,9 @@ def _write_artifacts(artifacts: Sequence[Artifact], force: bool) -> None:
         raise ValueError("record and wizard paths must differ")
     plans = tuple(_artifact_plan(artifact) for artifact in artifacts)
     protected = tuple(managed.protect(plan) for plan in plans)
+    for artifact, protected_plan in zip(artifacts, protected, strict=True):
+        if protected_plan.backup_path is not None:
+            protected_plan.backup_path.chmod(artifact.mode)
     conflicts = tuple(plan for plan in plans if plan.action == "conflict")
     if conflicts and not force:
         paths_text = ", ".join(str(plan.path) for plan in conflicts)
