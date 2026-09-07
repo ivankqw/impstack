@@ -12,8 +12,9 @@ Install these commands first:
 - `bash`
 - `node` with `npx`
 
-Install `bun` if you use the pstack `watch-pr` or `orch` tools. `install.sh` warns when `bun` is
-absent and continues without those tools.
+Install `bun` if you use the pstack `watch-pr` or `orch` tools. Bun's installer also requires
+`unzip`; on Debian and Ubuntu, install it with `sudo apt-get install unzip` before running the Bun
+installer. `install.sh` warns when `bun` is absent and continues without those tools.
 
 Put `~/.local/bin` on your `PATH`:
 
@@ -34,8 +35,18 @@ curl -fsSL https://raw.githubusercontent.com/ivankqw/impstack/main/bootstrap.sh 
 Use a clone when you want to read the scripts before you run them:
 
 ```bash
-git clone git@github.com:ivankqw/impstack.git ~/impstack
+git clone https://github.com/ivankqw/impstack.git ~/impstack
 ~/impstack/bootstrap.sh
+```
+
+The HTTPS form works on a new machine without a GitHub SSH key. Use the SSH remote when that machine
+already has a GitHub key configured.
+
+On a machine where you want to install the portable files before installing a harness, pass the
+explicit headless option:
+
+```bash
+~/impstack/bootstrap.sh --no-harness
 ```
 
 `bootstrap.sh` refuses unsupported operating systems and missing prerequisites. It refuses a
