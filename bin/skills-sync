@@ -27,6 +27,9 @@ from dataclasses import dataclass
 from typing import Any
 from xml.sax.saxutils import escape
 
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
+from scripts import user_state_paths
+
 CATALOG_FIELDS = ("source", "sourceType", "sourceUrl", "skillPath")
 
 
@@ -45,26 +48,11 @@ class SkillStatePaths:
     native_lock: pathlib.Path
 
 
-def user_state_path(value: str | pathlib.Path, home: pathlib.Path) -> pathlib.Path:
-    configured = pathlib.Path(value)
-    relative = not configured.is_absolute()
-    if configured.parts and configured.parts[0] == "~":
-        path = home.joinpath(*configured.parts[1:])
-    else:
-        path = configured.expanduser()
-    if not path.is_absolute():
-        path = home / path
-    resolved = path.resolve()
-    if relative and not resolved.is_relative_to(home):
-        raise ValueError("relative user-state path escapes home")
-    return resolved
-
-
 def skill_state_paths() -> SkillStatePaths:
     home = pathlib.Path.home().resolve()
     raw_xdg = os.environ.get("XDG_STATE_HOME")
-    xdg_state_home = user_state_path(raw_xdg, home) if raw_xdg else None
-    shared = user_state_path(
+    xdg_state_home = user_state_paths.resolve(raw_xdg, home) if raw_xdg else None
+    shared = user_state_paths.resolve(
         os.environ.get("SHARED_SKILLS") or home / ".agents" / "skills", home
     )
     native_lock = (
@@ -74,7 +62,7 @@ def skill_state_paths() -> SkillStatePaths:
     )
     configured_lock = os.environ.get("SKILLS_LOCK_FILE")
     if configured_lock:
-        lock = user_state_path(configured_lock, home)
+        lock = user_state_paths.resolve(configured_lock, home)
     else:
         lock = native_lock
     return SkillStatePaths(

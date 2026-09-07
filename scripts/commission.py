@@ -21,8 +21,10 @@ from collections.abc import Mapping, Sequence
 
 try:
     from scripts import managed_instructions as managed
+    from scripts import user_state_paths
 except ModuleNotFoundError:
     import managed_instructions as managed
+    import user_state_paths
 
 
 class Status(enum.Enum):
@@ -976,7 +978,7 @@ def _context(args: argparse.Namespace, outside_project: pathlib.Path) -> Context
     for name in ("SHARED_SKILLS", "XDG_STATE_HOME"):
         raw_path = environment.get(name)
         if raw_path:
-            environment[name] = str(managed.user_state_path(raw_path, home))
+            environment[name] = str(user_state_paths.resolve(raw_path, home))
         elif raw_path == "":
             environment.pop(name)
     return Context(args.repo.resolve(), home, environment, outside_project.resolve())

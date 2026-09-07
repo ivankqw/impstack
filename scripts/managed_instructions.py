@@ -15,6 +15,11 @@ import tempfile
 from collections.abc import Sequence
 from dataclasses import dataclass
 
+try:
+    from scripts import user_state_paths
+except ModuleNotFoundError:
+    import user_state_paths
+
 MAX_BACKUPS = 5
 
 
@@ -51,21 +56,6 @@ def filesystem_error(path: pathlib.Path, error: OSError) -> InstructionFilesyste
 
 def state_diagnostic(path: pathlib.Path, detail: str) -> str:
     return f"could not read instruction state: {path}: {detail}; remove or repair this file"
-
-
-def user_state_path(value: str | pathlib.Path, home: pathlib.Path) -> pathlib.Path:
-    configured = pathlib.Path(value)
-    relative = not configured.is_absolute()
-    if configured.parts and configured.parts[0] == "~":
-        path = home.joinpath(*configured.parts[1:])
-    else:
-        path = configured.expanduser()
-    if not path.is_absolute():
-        path = home / path
-    resolved = path.resolve()
-    if relative and not resolved.is_relative_to(home):
-        raise ValueError("relative user-state path escapes home")
-    return resolved
 
 
 def preflight_staging(paths: Sequence[pathlib.Path]) -> None:
@@ -255,7 +245,7 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--force", action="store_true")
     args = parser.parse_args(argv)
     home = args.home.resolve()
-    state_root = user_state_path(
+    state_root = user_state_paths.resolve(
         os.environ.get("XDG_STATE_HOME") or home / ".local/state",
         home,
     )
