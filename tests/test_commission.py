@@ -46,7 +46,12 @@ class CommissionTests(unittest.TestCase):
         )
         self.write_executable(
             self.repo / "install.sh",
-            common + "printf '%s\\n' \"$*\"\n",
+            common
+            + '# shared path authority: "$AC/bin/skills-sync" resolve-shared\n'
+            + "printf '%s\\n' \"$*\"\n",
+        )
+        (self.repo / "bin" / "skills-update").write_text(
+            '# shared path authority: "$AC/bin/skills-sync" resolve-shared\n'
         )
         self.write_executable(
             self.repo / "bin" / "skills-sync",

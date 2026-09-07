@@ -1,0 +1,545 @@
+{
+  "version": 1,
+  "assertions": [
+    {
+      "id": "install.preflight",
+      "kind": "command",
+      "applicability": [],
+      "command": [
+        "./install.sh",
+        "preflight"
+      ],
+      "expectation": {
+        "exit_code": 0
+      },
+      "remediation": {
+        "kind": "command",
+        "text": "Run `./install.sh preflight` and fix the reported prerequisite."
+      }
+    },
+    {
+      "id": "install.list",
+      "kind": "command",
+      "applicability": [],
+      "command": [
+        "./install.sh",
+        "--list"
+      ],
+      "expectation": {
+        "exit_code": 0
+      },
+      "remediation": {
+        "kind": "command",
+        "text": "Run `./install.sh --help` and fix the reported installer error."
+      }
+    },
+    {
+      "id": "skills.check",
+      "kind": "command",
+      "applicability": [],
+      "command": [
+        "bin/skills-sync",
+        "check"
+      ],
+      "expectation": {
+        "exit_code": 0
+      },
+      "remediation": {
+        "kind": "command",
+        "text": "Run `bin/skills-sync check` and fix each catalog error."
+      }
+    },
+    {
+      "id": "skills.shared-path",
+      "kind": "shared-path",
+      "applicability": [],
+      "command": [
+        "bin/skills-sync",
+        "resolve-shared"
+      ],
+      "expectation": {
+        "exit_code": 0
+      },
+      "remediation": {
+        "kind": "command",
+        "text": "Set `SHARED_SKILLS` to the intended directory, then rerun this check."
+      }
+    },
+    {
+      "id": "runtime.node",
+      "kind": "command",
+      "applicability": [],
+      "command": [
+        "bin/skills-sync",
+        "resolve-node"
+      ],
+      "expectation": {
+        "exit_code": 0
+      },
+      "remediation": {
+        "kind": "command",
+        "text": "Install Node.js or configure a supported Node.js manager."
+      }
+    },
+    {
+      "id": "runtime.npx",
+      "kind": "command",
+      "applicability": [],
+      "command": [
+        "bin/skills-sync",
+        "resolve-npx"
+      ],
+      "expectation": {
+        "exit_code": 0
+      },
+      "remediation": {
+        "kind": "command",
+        "text": "Install npm with npx or configure a supported Node.js manager."
+      }
+    },
+    {
+      "id": "harness.claude.auth",
+      "kind": "command",
+      "applicability": [
+        {
+          "kind": "command",
+          "name": "claude"
+        }
+      ],
+      "command": [
+        "claude",
+        "auth",
+        "status"
+      ],
+      "expectation": {
+        "exit_code": 0
+      },
+      "remediation": {
+        "kind": "wizard",
+        "stage": "Claude login"
+      }
+    },
+    {
+      "id": "harness.claude.canary",
+      "kind": "command",
+      "applicability": [
+        {
+          "kind": "command",
+          "name": "claude"
+        }
+      ],
+      "command": [
+        "claude",
+        "-p",
+        "Do not use tools. If your instructions contain 'A virtue cannot be graded', write LOADED, else write MISSING."
+      ],
+      "expectation": {
+        "exit_code": 0,
+        "stdout_contains": "LOADED"
+      },
+      "remediation": {
+        "kind": "command",
+        "text": "Run `./install.sh instructions`, then start a new Claude Code session."
+      }
+    },
+    {
+      "id": "harness.codex.auth",
+      "kind": "command",
+      "applicability": [
+        {
+          "kind": "command",
+          "name": "codex"
+        }
+      ],
+      "command": [
+        "codex",
+        "login",
+        "status"
+      ],
+      "expectation": {
+        "exit_code": 0
+      },
+      "remediation": {
+        "kind": "wizard",
+        "stage": "Codex login"
+      }
+    },
+    {
+      "id": "harness.codex.canary",
+      "kind": "command",
+      "applicability": [
+        {
+          "kind": "command",
+          "name": "codex"
+        }
+      ],
+      "command": [
+        "codex",
+        "exec",
+        "--skip-git-repo-check",
+        "Do not use tools. If your instructions contain 'A virtue cannot be graded', write LOADED, else write MISSING."
+      ],
+      "expectation": {
+        "exit_code": 0,
+        "stdout_contains": "LOADED"
+      },
+      "remediation": {
+        "kind": "command",
+        "text": "Run `./install.sh instructions`, then start a new Codex session."
+      }
+    },
+    {
+      "id": "harness.opencode.auth",
+      "kind": "command",
+      "applicability": [
+        {
+          "kind": "command",
+          "name": "opencode"
+        }
+      ],
+      "command": [
+        "opencode",
+        "auth",
+        "list"
+      ],
+      "expectation": {
+        "exit_code": 0
+      },
+      "remediation": {
+        "kind": "wizard",
+        "stage": "OpenCode login"
+      }
+    },
+    {
+      "id": "harness.opencode.canary",
+      "kind": "command",
+      "applicability": [
+        {
+          "kind": "command",
+          "name": "opencode"
+        }
+      ],
+      "command": [
+        "opencode",
+        "run",
+        "Do not use tools. If your instructions contain 'A virtue cannot be graded', write LOADED, else write MISSING."
+      ],
+      "expectation": {
+        "exit_code": 0,
+        "stdout_contains": "LOADED"
+      },
+      "remediation": {
+        "kind": "command",
+        "text": "Run `./install.sh instructions`, then start a new OpenCode session."
+      }
+    },
+    {
+      "id": "mcp.context7.claude",
+      "kind": "command",
+      "applicability": [
+        {
+          "kind": "command",
+          "name": "claude"
+        }
+      ],
+      "command": [
+        "claude",
+        "mcp",
+        "get",
+        "context7"
+      ],
+      "expectation": {
+        "exit_code": 0
+      },
+      "remediation": {
+        "kind": "command",
+        "text": "Run `./install.sh mcp`, then repeat this check."
+      }
+    },
+    {
+      "id": "mcp.exa.claude",
+      "kind": "command",
+      "applicability": [
+        {
+          "kind": "command",
+          "name": "claude"
+        }
+      ],
+      "command": [
+        "claude",
+        "mcp",
+        "get",
+        "exa"
+      ],
+      "expectation": {
+        "exit_code": 0
+      },
+      "remediation": {
+        "kind": "command",
+        "text": "Run `./install.sh mcp`, then repeat this check."
+      }
+    },
+    {
+      "id": "mcp.linear-server.claude",
+      "kind": "command",
+      "applicability": [
+        {
+          "kind": "command",
+          "name": "claude"
+        }
+      ],
+      "command": [
+        "claude",
+        "mcp",
+        "get",
+        "linear-server"
+      ],
+      "expectation": {
+        "exit_code": 0
+      },
+      "remediation": {
+        "kind": "command",
+        "text": "Run `./install.sh mcp`, then repeat this check."
+      }
+    },
+    {
+      "id": "mcp.executor.claude",
+      "kind": "command",
+      "applicability": [
+        {
+          "kind": "command",
+          "name": "claude"
+        },
+        {
+          "kind": "environment",
+          "name": "EXECUTOR_MCP_URL"
+        }
+      ],
+      "command": [
+        "claude",
+        "mcp",
+        "get",
+        "executor"
+      ],
+      "expectation": {
+        "exit_code": 0
+      },
+      "remediation": {
+        "kind": "wizard",
+        "stage": "Executor connection"
+      }
+    },
+    {
+      "id": "mcp.context7.codex",
+      "kind": "command",
+      "applicability": [
+        {
+          "kind": "command",
+          "name": "codex"
+        }
+      ],
+      "command": [
+        "codex",
+        "mcp",
+        "get",
+        "context7",
+        "--json"
+      ],
+      "expectation": {
+        "exit_code": 0
+      },
+      "remediation": {
+        "kind": "command",
+        "text": "Run `./install.sh mcp`, then repeat this check."
+      }
+    },
+    {
+      "id": "mcp.exa.codex",
+      "kind": "command",
+      "applicability": [
+        {
+          "kind": "command",
+          "name": "codex"
+        }
+      ],
+      "command": [
+        "codex",
+        "mcp",
+        "get",
+        "exa",
+        "--json"
+      ],
+      "expectation": {
+        "exit_code": 0
+      },
+      "remediation": {
+        "kind": "command",
+        "text": "Run `./install.sh mcp`, then repeat this check."
+      }
+    },
+    {
+      "id": "mcp.linear-server.codex",
+      "kind": "command",
+      "applicability": [
+        {
+          "kind": "command",
+          "name": "codex"
+        }
+      ],
+      "command": [
+        "codex",
+        "mcp",
+        "get",
+        "linear-server",
+        "--json"
+      ],
+      "expectation": {
+        "exit_code": 0
+      },
+      "remediation": {
+        "kind": "command",
+        "text": "Run `./install.sh mcp`, then repeat this check."
+      }
+    },
+    {
+      "id": "mcp.executor.codex",
+      "kind": "command",
+      "applicability": [
+        {
+          "kind": "command",
+          "name": "codex"
+        },
+        {
+          "kind": "environment",
+          "name": "EXECUTOR_MCP_URL"
+        }
+      ],
+      "command": [
+        "codex",
+        "mcp",
+        "get",
+        "executor",
+        "--json"
+      ],
+      "expectation": {
+        "exit_code": 0
+      },
+      "remediation": {
+        "kind": "wizard",
+        "stage": "Executor connection"
+      }
+    },
+    {
+      "id": "mcp.context7.opencode",
+      "kind": "command",
+      "applicability": [
+        {
+          "kind": "command",
+          "name": "opencode"
+        }
+      ],
+      "command": [
+        "opencode",
+        "mcp",
+        "list"
+      ],
+      "expectation": {
+        "exit_code": 0,
+        "stdout_contains": "context7"
+      },
+      "remediation": {
+        "kind": "command",
+        "text": "Run `./install.sh mcp`, then repeat this check."
+      }
+    },
+    {
+      "id": "mcp.exa.opencode",
+      "kind": "command",
+      "applicability": [
+        {
+          "kind": "command",
+          "name": "opencode"
+        }
+      ],
+      "command": [
+        "opencode",
+        "mcp",
+        "list"
+      ],
+      "expectation": {
+        "exit_code": 0,
+        "stdout_contains": "exa"
+      },
+      "remediation": {
+        "kind": "command",
+        "text": "Run `./install.sh mcp`, then repeat this check."
+      }
+    },
+    {
+      "id": "mcp.linear-server.opencode",
+      "kind": "command",
+      "applicability": [
+        {
+          "kind": "command",
+          "name": "opencode"
+        }
+      ],
+      "command": [
+        "opencode",
+        "mcp",
+        "list"
+      ],
+      "expectation": {
+        "exit_code": 0,
+        "stdout_contains": "linear-server"
+      },
+      "remediation": {
+        "kind": "command",
+        "text": "Run `./install.sh mcp`, then repeat this check."
+      }
+    },
+    {
+      "id": "mcp.executor.opencode",
+      "kind": "command",
+      "applicability": [
+        {
+          "kind": "command",
+          "name": "opencode"
+        },
+        {
+          "kind": "environment",
+          "name": "EXECUTOR_MCP_URL"
+        }
+      ],
+      "command": [
+        "opencode",
+        "mcp",
+        "list"
+      ],
+      "expectation": {
+        "exit_code": 0,
+        "stdout_contains": "executor"
+      },
+      "remediation": {
+        "kind": "wizard",
+        "stage": "Executor connection"
+      }
+    },
+    {
+      "id": "proof.install-list",
+      "kind": "command",
+      "applicability": [],
+      "command": [
+        "./install.sh",
+        "--list"
+      ],
+      "expectation": {
+        "exit_code": 0
+      },
+      "remediation": {
+        "kind": "command",
+        "text": "Fix `install.list`, then repeat the proof lane."
+      }
+    }
+  ]
+}
