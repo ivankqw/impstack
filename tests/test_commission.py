@@ -219,6 +219,31 @@ class CommissionTests(unittest.TestCase):
         self.assertTrue(
             all(item.get("working_directory") == "outside-project" for item in canaries)
         )
+
+    def test_rejected_outside_project_root_has_no_side_effect(self) -> None:
+        cache = self.home / ".cache" / "impstack" / "commission"
+
+        result = subprocess.run(
+            [
+                str(COMMISSION),
+                "check",
+                "--repo",
+                str(self.home),
+                "--home",
+                str(self.home),
+                "--contract",
+                str(CONTRACT),
+            ],
+            cwd=self.repo,
+            env=self.environment(),
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("outside-project directory must be outside", result.stderr)
+        self.assertFalse(cache.exists())
         self.assertTrue(
             all(
                 item.get("working_directory") == "repo"
