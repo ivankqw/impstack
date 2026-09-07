@@ -12,6 +12,7 @@ import pathlib
 import re
 import sys
 import tempfile
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 MAX_BACKUPS = 5
@@ -50,6 +51,20 @@ def filesystem_error(path: pathlib.Path, error: OSError) -> InstructionFilesyste
 
 def state_diagnostic(path: pathlib.Path, detail: str) -> str:
     return f"could not read instruction state: {path}: {detail}; remove or repair this file"
+
+
+def preflight_staging(paths: Sequence[pathlib.Path]) -> None:
+    for path in paths:
+        if not path.parent.is_dir():
+            continue
+        prefix = f".{path.name}."
+        if any(
+            item.name.startswith(prefix) and (item.is_file() or item.is_symlink())
+            for item in path.parent.iterdir()
+        ):
+            raise InstructionFilesystemError(
+                "stale managed artifact staging file; remove it and retry"
+            )
 
 
 def rendered(body: bytes) -> bytes:
@@ -259,6 +274,7 @@ def main(argv: list[str]) -> int:
             recorded.get("AGENTS.md"),
         ),
     )
+    preflight_staging(tuple(plan.path for plan in plans) + (state_path,))
     conflicts = [plan for plan in plans if plan.action == "conflict"]
     ready = plans if args.force else tuple(plan for plan in plans if plan.action != "conflict")
     if observation.read_diagnostic and any(plan.action != "noop" for plan in plans):

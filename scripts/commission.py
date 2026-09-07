@@ -945,22 +945,11 @@ def _artifact_plan(artifact: Artifact) -> managed.Plan:
     return plan
 
 
-def _stale_stage_exists(path: pathlib.Path) -> bool:
-    if not path.parent.is_dir():
-        return False
-    prefix = f".{path.name}."
-    return any(
-        item.name.startswith(prefix) and (item.is_file() or item.is_symlink())
-        for item in path.parent.iterdir()
-    )
-
-
 def _write_artifacts(artifacts: Sequence[Artifact], force: bool) -> None:
     paths = tuple(artifact.path.resolve() for artifact in artifacts)
     if len(set(paths)) != len(paths):
         raise ValueError("record and wizard paths must differ")
-    if any(_stale_stage_exists(artifact.path) for artifact in artifacts):
-        raise ValueError("stale managed artifact staging file; remove it and retry")
+    managed.preflight_staging(tuple(artifact.path for artifact in artifacts))
     plans = tuple(_artifact_plan(artifact) for artifact in artifacts)
     with contextlib.redirect_stdout(io.StringIO()):
         protected = tuple(managed.protect(plan) for plan in plans)
