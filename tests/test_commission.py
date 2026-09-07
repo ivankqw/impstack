@@ -8,6 +8,7 @@ import subprocess
 import tempfile
 import textwrap
 import unittest
+from unittest import mock
 
 from scripts import commission as commission_module
 
@@ -790,6 +791,31 @@ class CommissionTests(unittest.TestCase):
         self.assertEqual(len(tuple(self.sandbox.glob("record.md.impstack-backup.*"))), 1)
         self.assertEqual(len(tuple(self.sandbox.glob("wizard.sh.impstack-backup.*"))), 1)
         self.assertIn("--force", result.stderr)
+
+    def test_artifact_backup_is_private_at_creation(self) -> None:
+        record = self.sandbox / "record.md"
+        record.write_text("private existing record\n")
+        artifact = commission_module.Artifact("record", record, b"replacement\n", 0o600)
+        observed_modes: list[int] = []
+        protect = commission_module.managed.protect
+
+        def observe_backup(plan: object) -> object:
+            protected = protect(plan)
+            if protected.backup_path is not None:
+                observed_modes.append(protected.backup_path.stat().st_mode & 0o777)
+            return protected
+
+        previous_umask = os.umask(0o022)
+        try:
+            with mock.patch.object(
+                commission_module.managed, "protect", side_effect=observe_backup
+            ):
+                with self.assertRaisesRegex(ValueError, "--force"):
+                    commission_module._write_artifacts((artifact,), force=False)
+        finally:
+            os.umask(previous_umask)
+
+        self.assertEqual(observed_modes, [0o600])
 
     def test_probe_force_replaces_backed_up_artifacts(self) -> None:
         record = self.sandbox / "record.md"
