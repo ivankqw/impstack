@@ -16,7 +16,7 @@ Probe the current machine. Write one global machine skill from observed results.
 5. Set the wizard path to `$HOME/.config/impstack/commission-wizard.sh`.
 6. Run `bin/commission probe --repo "$IMPSTACK_DIR" --home "$HOME" --record <record-path> --wizard <wizard-path>`.
 
-The probe runs the fixed assertion registry in `commission.contract.json`. It records every status and exact command. The `proof.install-list` assertion is the required real proof lane.
+The probe runs the fixed assertion registry in `commission.contract.json`. It records every status and exact command. The `proof.install-bin` assertion is the required real proof lane.
 
 ## Handle the result
 
