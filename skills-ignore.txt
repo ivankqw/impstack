@@ -1,2 +1,4 @@
 # MAINTAINING.md excludes larksuite skills from the committed catalog on purpose.
 lark-*
+# Commission generates one local machine skill that does not belong in the portable catalog.
+machine-*

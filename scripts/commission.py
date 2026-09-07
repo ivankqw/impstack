@@ -14,6 +14,7 @@ import shutil
 import socket
 import subprocess
 import sys
+import tempfile
 from collections.abc import Mapping, Sequence
 
 
@@ -23,17 +24,34 @@ class Status(enum.Enum):
     NOT_APPLICABLE = "not-applicable"
 
 
+class WorkingDirectory(enum.Enum):
+    REPO = "repo"
+    OUTSIDE_PROJECT = "outside-project"
+
+
+@dataclasses.dataclass(frozen=True)
+class Applicability:
+    applicable: bool
+    reason: str | None
+    remediation_actionable: bool
+
+
 @dataclasses.dataclass(frozen=True)
 class Assertion:
     assertion_id: str
     kind: str
     requirements: tuple[Mapping[str, str], ...]
+    working_directory: WorkingDirectory
     command: tuple[str, ...]
     exit_code: int
     stdout_contains: str | None
     remediation_kind: str
     remediation_text: str
+    remediation_stage_id: str | None
     remediation_statuses: tuple[Status, ...]
+    absent_registration_reason: str | None
+    absent_registration_exit_codes: tuple[int, ...]
+    absent_registration_requires_missing_stdout: bool
 
 
 @dataclasses.dataclass(frozen=True)
@@ -50,8 +68,10 @@ class AssertionResult:
     status: Status
     message: str
     evidence: CommandEvidence
+    applicability: Applicability
     remediation_kind: str
     remediation_text: str
+    remediation_stage_id: str | None
     remediation_statuses: tuple[Status, ...]
 
 
@@ -69,6 +89,16 @@ class Context:
     repo: pathlib.Path
     home: pathlib.Path
     environment: Mapping[str, str]
+    outside_project: pathlib.Path
+
+
+WIZARD_STAGES = {
+    "claude-login": "Claude login",
+    "codex-login": "Codex login",
+    "opencode-login": "OpenCode login",
+    "context7-token": "Context7 token",
+    "executor-connection": "Executor connection",
+}
 
 
 def _expect_mapping(value: object, label: str) -> Mapping[str, object]:
@@ -88,6 +118,7 @@ def load_contract(path: pathlib.Path) -> tuple[Assertion, ...]:
         assertion_id = item.get("id")
         command = item.get("command")
         requirements = item.get("applicability")
+        working_directory = item.get("working_directory")
         expectation = _expect_mapping(item.get("expectation"), f"{assertion_id}.expectation")
         remediation = _expect_mapping(item.get("remediation"), f"{assertion_id}.remediation")
         valid = (
@@ -100,6 +131,7 @@ def load_contract(path: pathlib.Path) -> tuple[Assertion, ...]:
             and all(isinstance(part, str) and part for part in command)
             and isinstance(requirements, list)
             and all(isinstance(requirement, dict) for requirement in requirements)
+            and working_directory in {item.value for item in WorkingDirectory}
             and isinstance(expectation.get("exit_code"), int)
             and (
                 expectation.get("stdout_contains") is None
@@ -111,44 +143,83 @@ def load_contract(path: pathlib.Path) -> tuple[Assertion, ...]:
             raise ValueError(f"invalid assertion: {assertion_id or index}")
         remediation_text = remediation.get("text", remediation.get("stage"))
         remediation_statuses = remediation.get("statuses")
+        remediation_stage_id = remediation.get("stage_id")
+        absent_registration = item.get("absent_registration")
         if (
             not isinstance(remediation_text, str)
             or not remediation_text
             or not isinstance(remediation_statuses, list)
             or not remediation_statuses
             or not all(status in {item.value for item in Status} for status in remediation_statuses)
+            or (
+                remediation.get("kind") == "wizard"
+                and (
+                    remediation_stage_id not in WIZARD_STAGES
+                    or WIZARD_STAGES[remediation_stage_id] != remediation_text
+                )
+            )
+            or (remediation.get("kind") == "command" and remediation_stage_id is not None)
         ):
             raise ValueError(f"invalid remediation: {assertion_id}")
+        absent_reason: str | None = None
+        absent_exit_codes: tuple[int, ...] = ()
+        absent_requires_missing_stdout = False
+        if absent_registration is not None:
+            absent = _expect_mapping(absent_registration, f"{assertion_id}.absent_registration")
+            raw_exit_codes = absent.get("exit_codes")
+            absent_requires_missing_stdout = absent.get("requires_missing_stdout") is True
+            if (
+                absent.get("status") != Status.NOT_APPLICABLE.value
+                or not isinstance(absent.get("reason"), str)
+                or not isinstance(raw_exit_codes, list)
+                or not raw_exit_codes
+                or not all(isinstance(code, int) for code in raw_exit_codes)
+            ):
+                raise ValueError(f"invalid absent registration: {assertion_id}")
+            absent_reason = str(absent["reason"])
+            absent_exit_codes = tuple(raw_exit_codes)
+        for requirement in requirements:
+            if requirement.get("kind") not in {"command", "environment"} or not isinstance(
+                requirement.get("actionable"), bool
+            ):
+                raise ValueError(f"invalid applicability rule: {assertion_id}")
         seen.add(assertion_id)
         assertions.append(
             Assertion(
                 assertion_id=assertion_id,
                 kind=str(item["kind"]),
                 requirements=tuple(requirements),
+                working_directory=WorkingDirectory(str(working_directory)),
                 command=tuple(command),
                 exit_code=int(expectation["exit_code"]),
                 stdout_contains=expectation.get("stdout_contains"),
                 remediation_kind=str(remediation["kind"]),
                 remediation_text=remediation_text,
+                remediation_stage_id=(
+                    str(remediation_stage_id) if remediation_stage_id is not None else None
+                ),
                 remediation_statuses=tuple(Status(status) for status in remediation_statuses),
+                absent_registration_reason=absent_reason,
+                absent_registration_exit_codes=absent_exit_codes,
+                absent_registration_requires_missing_stdout=absent_requires_missing_stdout,
             )
         )
     return tuple(assertions)
 
 
-def _not_applicable(assertion: Assertion, context: Context) -> str | None:
+def _applicability(assertion: Assertion, context: Context) -> Applicability:
     for requirement in assertion.requirements:
         kind = requirement.get("kind")
         name = requirement.get("name")
         if not isinstance(name, str):
             raise ValueError(f"invalid applicability rule: {assertion.assertion_id}")
         if kind == "command" and shutil.which(name, path=context.environment.get("PATH")) is None:
-            return f"{name} is not installed"
+            return Applicability(False, f"{name} is not installed", bool(requirement["actionable"]))
         if kind == "environment" and name not in context.environment:
-            return f"${name} is not set"
+            return Applicability(False, f"${name} is not set", bool(requirement["actionable"]))
         if kind not in {"command", "environment"}:
             raise ValueError(f"unknown applicability rule: {kind}")
-    return None
+    return Applicability(True, None, True)
 
 
 def _safe_output(text: str, assertion_id: str) -> str:
@@ -173,7 +244,11 @@ def _run(assertion: Assertion, context: Context) -> CommandEvidence:
     try:
         completed = subprocess.run(
             command,
-            cwd=context.repo,
+            cwd=(
+                context.repo
+                if assertion.working_directory is WorkingDirectory.REPO
+                else context.outside_project
+            ),
             env=environment,
             text=True,
             capture_output=True,
@@ -198,17 +273,19 @@ def _run(assertion: Assertion, context: Context) -> CommandEvidence:
 def evaluate(assertions: Sequence[Assertion], context: Context) -> Report:
     results: list[AssertionResult] = []
     for assertion in assertions:
-        unavailable = _not_applicable(assertion, context)
-        if unavailable:
+        applicability = _applicability(assertion, context)
+        if not applicability.applicable:
             evidence = CommandEvidence(shlex.join(assertion.command), None, "", "")
             results.append(
                 AssertionResult(
                     assertion.assertion_id,
                     Status.NOT_APPLICABLE,
-                    unavailable,
+                    applicability.reason or "not applicable",
                     evidence,
+                    applicability,
                     assertion.remediation_kind,
                     assertion.remediation_text,
+                    assertion.remediation_stage_id,
                     assertion.remediation_statuses,
                 )
             )
@@ -233,8 +310,27 @@ def evaluate(assertions: Sequence[Assertion], context: Context) -> Report:
                 source.is_file() and resolver_call in source.read_text() for source in sources
             )
         status = Status.PASS if matches_exit and matches_stdout else Status.FAIL
+        absent_registration = (
+            status is Status.FAIL
+            and assertion.absent_registration_reason is not None
+            and evidence.exit_code in assertion.absent_registration_exit_codes
+            and (
+                not assertion.absent_registration_requires_missing_stdout
+                or (
+                    assertion.stdout_contains is not None
+                    and assertion.stdout_contains not in evidence.stdout
+                )
+            )
+        )
+        if absent_registration:
+            status = Status.NOT_APPLICABLE
+            applicability = Applicability(
+                False, assertion.absent_registration_reason, False
+            )
         if status is Status.PASS:
             message = "expectation met"
+        elif status is Status.NOT_APPLICABLE:
+            message = assertion.absent_registration_reason or "not applicable"
         elif not matches_exit:
             message = f"expected exit {assertion.exit_code}, got {evidence.exit_code}"
         elif assertion.kind == "shared-path":
@@ -247,8 +343,10 @@ def evaluate(assertions: Sequence[Assertion], context: Context) -> Report:
                 status,
                 message,
                 evidence,
+                applicability,
                 assertion.remediation_kind,
                 assertion.remediation_text,
+                assertion.remediation_stage_id,
                 assertion.remediation_statuses,
             )
         )
@@ -268,6 +366,11 @@ def report_data(report: Report) -> dict[str, object]:
                 "remediation": {
                     "kind": result.remediation_kind,
                     "text": result.remediation_text,
+                    **(
+                        {"stage_id": result.remediation_stage_id}
+                        if result.remediation_stage_id
+                        else {}
+                    ),
                 },
             }
             for result in report.results
@@ -295,8 +398,8 @@ def _version(command: str, context: Context) -> str:
     if shutil.which(command, path=context.environment.get("PATH")) is None:
         return "not installed"
     assertion = Assertion(
-        "inventory", "command", (), (command, "--version"), 0, None,
-        "command", "none", (Status.FAIL,),
+        "inventory", "command", (), WorkingDirectory.REPO, (command, "--version"),
+        0, None, "command", "none", None, (Status.FAIL,), None, (), False,
     )
     evidence = _run(assertion, context)
     return evidence.stdout or evidence.stderr or f"exit {evidence.exit_code}"
@@ -338,21 +441,24 @@ def render_record(report: Report, context: Context, wizard_path: pathlib.Path | 
         f"- Node: `{node_path}`. Version: `{_version('node', context)}`",
         f"- npx: `{npx_path}`. Version: `{_version('npx', context)}`",
         f"- Bun: `{bun_path}`. Version: `{_version('bun', context)}`",
-        "- Package manager: `npm` through `npx`",
+        f"- Package manager: `{shutil.which('npm', path=context.environment.get('PATH')) or 'unavailable'}`. "
+        f"Version: `{_runtime_value(report, 'runtime.package-manager')}`",
         f"- XDG state home: `{xdg}`",
         f"- Shared skills: `{shared}`",
         "",
         "## Harnesses",
         "",
+        "| Harness | Installed | Version | Authenticated | Conventions |",
+        "|---|---|---|---|---|",
     ]
     for harness in ("claude", "codex", "opencode"):
         auth = _result(report, f"harness.{harness}.auth")
         canary = _result(report, f"harness.{harness}.canary")
         installed = auth is not None and auth.status is not Status.NOT_APPLICABLE
         lines.append(
-            f"- {harness}: installed `{'yes' if installed else 'no'}`; "
-            f"version `{_version(harness, context)}`; authenticated `{auth.status.value if auth else 'unknown'}`; "
-            f"conventions `{canary.status.value if canary else 'unknown'}`"
+            f"| {harness} | {'yes' if installed else 'no'} | {_version(harness, context)} | "
+            f"{auth.status.value if auth else 'unknown'} | "
+            f"{canary.status.value if canary else 'unknown'} |"
         )
     lines.extend(["", "## Connections", ""])
     for result in report.results:
@@ -366,7 +472,13 @@ def render_record(report: Report, context: Context, wizard_path: pathlib.Path | 
         )
     lines.extend(["", "## Remediation", ""])
     actionable = [
-        result for result in report.results if result.status in result.remediation_statuses
+        result
+        for result in report.results
+        if result.status in result.remediation_statuses
+        and (
+            result.status is not Status.NOT_APPLICABLE
+            or result.applicability.remediation_actionable
+        )
     ]
     if actionable:
         for result in actionable:
@@ -386,25 +498,30 @@ def render_wizard(template: str, report: Report) -> str:
     if template.count(marker) != 1:
         raise ValueError("wizard template must contain one STAGES marker")
     library = template[: template.index(marker)]
-    stage_names: list[str] = []
+    stages: list[tuple[str, str]] = []
     for result in report.results:
         if (
             result.remediation_kind != "wizard"
             or result.status not in result.remediation_statuses
+            or (
+                result.status is Status.NOT_APPLICABLE
+                and not result.applicability.remediation_actionable
+            )
         ):
             continue
-        if result.remediation_text not in stage_names:
-            stage_names.append(result.remediation_text)
+        stage = (result.remediation_stage_id or "", result.remediation_text)
+        if stage not in stages:
+            stages.append(stage)
     lines = [
         marker,
         "",
-        f"TOTAL_STAGES={len(stage_names)}",
+        f"TOTAL_STAGES={len(stages)}",
         'banner "Commission this machine"',
         "",
     ]
-    for stage_name in stage_names:
+    for stage_id, stage_name in stages:
         lines.append(f'stage "{stage_name}"')
-        if stage_name == "Executor connection":
+        if stage_id == "executor-connection":
             lines.extend(
                 [
                     'ENV_FILE="$HOME/.config/impstack/env"',
@@ -418,7 +535,7 @@ def render_wizard(template: str, report: Report) -> str:
                     'pause "Press Enter after you complete the browser sign-in."',
                 ]
             )
-        elif stage_name == "Context7 token":
+        elif stage_id == "context7-token":
             lines.extend(
                 [
                     'ENV_FILE="$HOME/.config/impstack/env"',
@@ -431,7 +548,11 @@ def render_wizard(template: str, report: Report) -> str:
                 ]
             )
         else:
-            harness = stage_name.removesuffix(" login")
+            harness = {
+                "claude-login": "Claude",
+                "codex-login": "Codex",
+                "opencode-login": "OpenCode",
+            }[stage_id]
             command = {
                 "Claude": "claude auth login",
                 "Codex": "codex login",
@@ -448,8 +569,10 @@ def render_wizard(template: str, report: Report) -> str:
     return library + "\n".join(lines)
 
 
-def _context(args: argparse.Namespace) -> Context:
-    return Context(args.repo.resolve(), args.home.resolve(), dict(os.environ))
+def _context(args: argparse.Namespace, outside_project: pathlib.Path) -> Context:
+    return Context(
+        args.repo.resolve(), args.home.resolve(), dict(os.environ), outside_project.resolve()
+    )
 
 
 def _common(parser: argparse.ArgumentParser) -> None:
@@ -473,10 +596,17 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
 
 def main(argv: Sequence[str]) -> int:
     args = parse_args(argv)
-    context = _context(args)
-    contract_path = args.contract or context.repo / "commission.contract.json"
     try:
-        report = evaluate(load_contract(contract_path), context)
+        repo = args.repo.resolve()
+        home = args.home.resolve()
+        outside_root = home / ".cache" / "impstack" / "commission"
+        outside_root.mkdir(parents=True, exist_ok=True)
+        if outside_root == repo or repo in outside_root.parents:
+            raise ValueError("outside-project directory must be outside the repository")
+        with tempfile.TemporaryDirectory(dir=outside_root) as temporary_directory:
+            context = _context(args, pathlib.Path(temporary_directory))
+            contract_path = args.contract or context.repo / "commission.contract.json"
+            report = evaluate(load_contract(contract_path), context)
         if args.action == "check":
             sys.stdout.write(render_report(report, args.format))
         else:

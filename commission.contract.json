@@ -4,6 +4,7 @@
     {
       "id": "install.preflight",
       "kind": "command",
+      "working_directory": "repo",
       "applicability": [],
       "command": [
         "./install.sh",
@@ -14,7 +15,7 @@
       },
       "remediation": {
         "kind": "command",
-        "text": "Run `./install.sh preflight` and fix the reported prerequisite.",
+        "text": "Run `./install.sh preflight`. Fix the reported prerequisite.",
         "statuses": [
           "fail"
         ]
@@ -23,6 +24,7 @@
     {
       "id": "install.list",
       "kind": "command",
+      "working_directory": "repo",
       "applicability": [],
       "command": [
         "./install.sh",
@@ -33,7 +35,7 @@
       },
       "remediation": {
         "kind": "command",
-        "text": "Run `./install.sh --help` and fix the reported installer error.",
+        "text": "Run `./install.sh --help`. Fix the reported installer error.",
         "statuses": [
           "fail"
         ]
@@ -42,6 +44,7 @@
     {
       "id": "skills.check",
       "kind": "command",
+      "working_directory": "repo",
       "applicability": [],
       "command": [
         "bin/skills-sync",
@@ -52,7 +55,7 @@
       },
       "remediation": {
         "kind": "command",
-        "text": "Run `bin/skills-sync check` and fix each catalog error.",
+        "text": "Run `bin/skills-sync check`. Fix each catalog error.",
         "statuses": [
           "fail"
         ]
@@ -61,6 +64,7 @@
     {
       "id": "skills.shared-path",
       "kind": "shared-path",
+      "working_directory": "repo",
       "applicability": [],
       "command": [
         "bin/skills-sync",
@@ -71,7 +75,7 @@
       },
       "remediation": {
         "kind": "command",
-        "text": "Set `SHARED_SKILLS` to the intended directory, then rerun this check.",
+        "text": "Set `SHARED_SKILLS` to the intended directory. Repeat this check.",
         "statuses": [
           "fail"
         ]
@@ -80,6 +84,7 @@
     {
       "id": "runtime.node",
       "kind": "command",
+      "working_directory": "repo",
       "applicability": [],
       "command": [
         "bin/skills-sync",
@@ -99,6 +104,7 @@
     {
       "id": "runtime.npx",
       "kind": "command",
+      "working_directory": "repo",
       "applicability": [],
       "command": [
         "bin/skills-sync",
@@ -116,12 +122,40 @@
       }
     },
     {
-      "id": "harness.claude.auth",
+      "id": "runtime.package-manager",
       "kind": "command",
+      "working_directory": "repo",
       "applicability": [
         {
           "kind": "command",
-          "name": "claude"
+          "name": "npm",
+          "actionable": false
+        }
+      ],
+      "command": [
+        "npm",
+        "--version"
+      ],
+      "expectation": {
+        "exit_code": 0
+      },
+      "remediation": {
+        "kind": "command",
+        "text": "Install npm or put its executable on `PATH`.",
+        "statuses": [
+          "fail"
+        ]
+      }
+    },
+    {
+      "id": "harness.claude.auth",
+      "kind": "command",
+      "working_directory": "repo",
+      "applicability": [
+        {
+          "kind": "command",
+          "name": "claude",
+          "actionable": false
         }
       ],
       "command": [
@@ -134,6 +168,7 @@
       },
       "remediation": {
         "kind": "wizard",
+        "stage_id": "claude-login",
         "stage": "Claude login",
         "statuses": [
           "fail"
@@ -143,10 +178,12 @@
     {
       "id": "harness.claude.canary",
       "kind": "command",
+      "working_directory": "outside-project",
       "applicability": [
         {
           "kind": "command",
-          "name": "claude"
+          "name": "claude",
+          "actionable": false
         }
       ],
       "command": [
@@ -160,7 +197,7 @@
       },
       "remediation": {
         "kind": "command",
-        "text": "Run `./install.sh instructions`, then start a new Claude Code session.",
+        "text": "Run `./install.sh instructions`. Start a new Claude Code session.",
         "statuses": [
           "fail"
         ]
@@ -169,10 +206,12 @@
     {
       "id": "harness.codex.auth",
       "kind": "command",
+      "working_directory": "repo",
       "applicability": [
         {
           "kind": "command",
-          "name": "codex"
+          "name": "codex",
+          "actionable": false
         }
       ],
       "command": [
@@ -185,6 +224,7 @@
       },
       "remediation": {
         "kind": "wizard",
+        "stage_id": "codex-login",
         "stage": "Codex login",
         "statuses": [
           "fail"
@@ -194,10 +234,12 @@
     {
       "id": "harness.codex.canary",
       "kind": "command",
+      "working_directory": "outside-project",
       "applicability": [
         {
           "kind": "command",
-          "name": "codex"
+          "name": "codex",
+          "actionable": false
         }
       ],
       "command": [
@@ -212,7 +254,7 @@
       },
       "remediation": {
         "kind": "command",
-        "text": "Run `./install.sh instructions`, then start a new Codex session.",
+        "text": "Run `./install.sh instructions`. Start a new Codex session.",
         "statuses": [
           "fail"
         ]
@@ -221,10 +263,12 @@
     {
       "id": "harness.opencode.auth",
       "kind": "command",
+      "working_directory": "repo",
       "applicability": [
         {
           "kind": "command",
-          "name": "opencode"
+          "name": "opencode",
+          "actionable": false
         }
       ],
       "command": [
@@ -237,6 +281,7 @@
       },
       "remediation": {
         "kind": "wizard",
+        "stage_id": "opencode-login",
         "stage": "OpenCode login",
         "statuses": [
           "fail"
@@ -246,10 +291,12 @@
     {
       "id": "harness.opencode.canary",
       "kind": "command",
+      "working_directory": "outside-project",
       "applicability": [
         {
           "kind": "command",
-          "name": "opencode"
+          "name": "opencode",
+          "actionable": false
         }
       ],
       "command": [
@@ -263,7 +310,7 @@
       },
       "remediation": {
         "kind": "command",
-        "text": "Run `./install.sh instructions`, then start a new OpenCode session.",
+        "text": "Run `./install.sh instructions`. Start a new OpenCode session.",
         "statuses": [
           "fail"
         ]
@@ -272,10 +319,12 @@
     {
       "id": "mcp.context7.claude",
       "kind": "command",
+      "working_directory": "repo",
       "applicability": [
         {
           "kind": "command",
-          "name": "claude"
+          "name": "claude",
+          "actionable": false
         }
       ],
       "command": [
@@ -289,6 +338,7 @@
       },
       "remediation": {
         "kind": "wizard",
+        "stage_id": "context7-token",
         "stage": "Context7 token",
         "statuses": [
           "fail"
@@ -298,10 +348,12 @@
     {
       "id": "mcp.exa.claude",
       "kind": "command",
+      "working_directory": "repo",
       "applicability": [
         {
           "kind": "command",
-          "name": "claude"
+          "name": "claude",
+          "actionable": false
         }
       ],
       "command": [
@@ -315,7 +367,7 @@
       },
       "remediation": {
         "kind": "command",
-        "text": "Run `./install.sh mcp`, then repeat this check.",
+        "text": "Run `./install.sh mcp`. Repeat this check.",
         "statuses": [
           "fail"
         ]
@@ -324,10 +376,12 @@
     {
       "id": "mcp.linear-server.claude",
       "kind": "command",
+      "working_directory": "repo",
       "applicability": [
         {
           "kind": "command",
-          "name": "claude"
+          "name": "claude",
+          "actionable": false
         }
       ],
       "command": [
@@ -341,7 +395,7 @@
       },
       "remediation": {
         "kind": "command",
-        "text": "Run `./install.sh mcp`, then repeat this check.",
+        "text": "Run `./install.sh mcp`. Repeat this check.",
         "statuses": [
           "fail"
         ]
@@ -350,14 +404,17 @@
     {
       "id": "mcp.executor.claude",
       "kind": "command",
+      "working_directory": "repo",
       "applicability": [
         {
           "kind": "command",
-          "name": "claude"
+          "name": "claude",
+          "actionable": false
         },
         {
           "kind": "environment",
-          "name": "EXECUTOR_MCP_URL"
+          "name": "EXECUTOR_MCP_URL",
+          "actionable": true
         }
       ],
       "command": [
@@ -371,6 +428,7 @@
       },
       "remediation": {
         "kind": "wizard",
+        "stage_id": "executor-connection",
         "stage": "Executor connection",
         "statuses": [
           "fail",
@@ -381,10 +439,12 @@
     {
       "id": "mcp.context7.codex",
       "kind": "command",
+      "working_directory": "repo",
       "applicability": [
         {
           "kind": "command",
-          "name": "codex"
+          "name": "codex",
+          "actionable": false
         }
       ],
       "command": [
@@ -399,19 +459,30 @@
       },
       "remediation": {
         "kind": "wizard",
+        "stage_id": "context7-token",
         "stage": "Context7 token",
         "statuses": [
           "fail"
         ]
+      },
+      "absent_registration": {
+        "status": "not-applicable",
+        "reason": "install.sh cannot register Context7 for Codex because its header is not bearer authentication.",
+        "exit_codes": [
+          1
+        ],
+        "requires_missing_stdout": false
       }
     },
     {
       "id": "mcp.exa.codex",
       "kind": "command",
+      "working_directory": "repo",
       "applicability": [
         {
           "kind": "command",
-          "name": "codex"
+          "name": "codex",
+          "actionable": false
         }
       ],
       "command": [
@@ -426,7 +497,7 @@
       },
       "remediation": {
         "kind": "command",
-        "text": "Run `./install.sh mcp`, then repeat this check.",
+        "text": "Run `./install.sh mcp`. Repeat this check.",
         "statuses": [
           "fail"
         ]
@@ -435,10 +506,12 @@
     {
       "id": "mcp.linear-server.codex",
       "kind": "command",
+      "working_directory": "repo",
       "applicability": [
         {
           "kind": "command",
-          "name": "codex"
+          "name": "codex",
+          "actionable": false
         }
       ],
       "command": [
@@ -453,7 +526,7 @@
       },
       "remediation": {
         "kind": "command",
-        "text": "Run `./install.sh mcp`, then repeat this check.",
+        "text": "Run `./install.sh mcp`. Repeat this check.",
         "statuses": [
           "fail"
         ]
@@ -462,14 +535,17 @@
     {
       "id": "mcp.executor.codex",
       "kind": "command",
+      "working_directory": "repo",
       "applicability": [
         {
           "kind": "command",
-          "name": "codex"
+          "name": "codex",
+          "actionable": false
         },
         {
           "kind": "environment",
-          "name": "EXECUTOR_MCP_URL"
+          "name": "EXECUTOR_MCP_URL",
+          "actionable": true
         }
       ],
       "command": [
@@ -484,6 +560,7 @@
       },
       "remediation": {
         "kind": "wizard",
+        "stage_id": "executor-connection",
         "stage": "Executor connection",
         "statuses": [
           "fail",
@@ -494,10 +571,12 @@
     {
       "id": "mcp.context7.opencode",
       "kind": "command",
+      "working_directory": "repo",
       "applicability": [
         {
           "kind": "command",
-          "name": "opencode"
+          "name": "opencode",
+          "actionable": false
         }
       ],
       "command": [
@@ -511,19 +590,30 @@
       },
       "remediation": {
         "kind": "wizard",
+        "stage_id": "context7-token",
         "stage": "Context7 token",
         "statuses": [
           "fail"
         ]
+      },
+      "absent_registration": {
+        "status": "not-applicable",
+        "reason": "install.sh cannot register context7 for OpenCode because MCP add is interactive.",
+        "exit_codes": [
+          0
+        ],
+        "requires_missing_stdout": true
       }
     },
     {
       "id": "mcp.exa.opencode",
       "kind": "command",
+      "working_directory": "repo",
       "applicability": [
         {
           "kind": "command",
-          "name": "opencode"
+          "name": "opencode",
+          "actionable": false
         }
       ],
       "command": [
@@ -537,19 +627,29 @@
       },
       "remediation": {
         "kind": "command",
-        "text": "Run `./install.sh mcp`, then repeat this check.",
+        "text": "Run `./install.sh mcp`. Repeat this check.",
         "statuses": [
           "fail"
         ]
+      },
+      "absent_registration": {
+        "status": "not-applicable",
+        "reason": "install.sh cannot register exa for OpenCode because MCP add is interactive.",
+        "exit_codes": [
+          0
+        ],
+        "requires_missing_stdout": true
       }
     },
     {
       "id": "mcp.linear-server.opencode",
       "kind": "command",
+      "working_directory": "repo",
       "applicability": [
         {
           "kind": "command",
-          "name": "opencode"
+          "name": "opencode",
+          "actionable": false
         }
       ],
       "command": [
@@ -563,23 +663,34 @@
       },
       "remediation": {
         "kind": "command",
-        "text": "Run `./install.sh mcp`, then repeat this check.",
+        "text": "Run `./install.sh mcp`. Repeat this check.",
         "statuses": [
           "fail"
         ]
+      },
+      "absent_registration": {
+        "status": "not-applicable",
+        "reason": "install.sh cannot register linear-server for OpenCode because MCP add is interactive.",
+        "exit_codes": [
+          0
+        ],
+        "requires_missing_stdout": true
       }
     },
     {
       "id": "mcp.executor.opencode",
       "kind": "command",
+      "working_directory": "repo",
       "applicability": [
         {
           "kind": "command",
-          "name": "opencode"
+          "name": "opencode",
+          "actionable": false
         },
         {
           "kind": "environment",
-          "name": "EXECUTOR_MCP_URL"
+          "name": "EXECUTOR_MCP_URL",
+          "actionable": true
         }
       ],
       "command": [
@@ -593,27 +704,37 @@
       },
       "remediation": {
         "kind": "wizard",
+        "stage_id": "executor-connection",
         "stage": "Executor connection",
         "statuses": [
           "fail",
           "not-applicable"
         ]
+      },
+      "absent_registration": {
+        "status": "not-applicable",
+        "reason": "install.sh cannot register executor for OpenCode because MCP add is interactive.",
+        "exit_codes": [
+          0
+        ],
+        "requires_missing_stdout": true
       }
     },
     {
-      "id": "proof.install-list",
+      "id": "proof.install-bin",
       "kind": "command",
+      "working_directory": "repo",
       "applicability": [],
       "command": [
         "./install.sh",
-        "--list"
+        "bin"
       ],
       "expectation": {
         "exit_code": 0
       },
       "remediation": {
         "kind": "command",
-        "text": "Fix `install.list`, then repeat the proof lane.",
+        "text": "Fix the `bin` install step. Repeat the proof lane.",
         "statuses": [
           "fail"
         ]

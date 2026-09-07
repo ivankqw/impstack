@@ -45,6 +45,9 @@ class CommissionTests(unittest.TestCase):
             case ",${FAIL_ASSERTIONS:-}," in
               *,$id,*) printf '%s\\n' "${FAILURE_SENTINEL:-forced failure for $id}" >&2; exit 41 ;;
             esac
+            case ",${ABSENT_ASSERTIONS:-}," in
+              *,$id,*) export COMMISSION_FAKE_ABSENT=true ;;
+            esac
             """
         )
         self.write_executable(
@@ -74,7 +77,7 @@ class CommissionTests(unittest.TestCase):
                 """
             ),
         )
-        for name in ("node", "npx", "bun"):
+        for name in ("node", "npx", "npm", "bun"):
             self.write_executable(
                 self.fakebin / name,
                 common + f"printf '{name} 1.2.3\\n'\n",
@@ -89,13 +92,31 @@ class CommissionTests(unittest.TestCase):
                       --version) printf '{name} 1.2.3\\n' ;;
                       auth|login) printf 'authenticated\\n' ;;
                       mcp)
+                        if [[ "${{COMMISSION_FAKE_ABSENT:-}}" == true && "{name}" == codex ]]; then
+                          exit 1
+                        fi
                         if [[ "${{2:-}}" == "list" ]]; then
-                          printf 'context7 exa linear-server executor\\n'
+                          if [[ "${{COMMISSION_FAKE_ABSENT:-}}" == true ]]; then
+                            case "$id" in
+                              mcp.context7.opencode) printf 'exa linear-server executor\\n' ;;
+                              mcp.exa.opencode) printf 'context7 linear-server executor\\n' ;;
+                              mcp.linear-server.opencode) printf 'context7 exa executor\\n' ;;
+                              mcp.executor.opencode) printf 'context7 exa linear-server\\n' ;;
+                            esac
+                          else
+                            printf 'context7 exa linear-server executor\\n'
+                          fi
                         else
                           printf '%s registered\\n' "${{3:-}}"
                         fi
                         ;;
-                      *) printf 'LOADED\\n' ;;
+                      *)
+                        if [[ "$PWD" == "$IMPSTACK_DIR" || "$PWD" == "$IMPSTACK_DIR/"* ]]; then
+                          printf 'MISSING\\n'
+                        else
+                          printf 'LOADED\\n'
+                        fi
+                        ;;
                     esac
                     """
                 ),
@@ -140,6 +161,65 @@ class CommissionTests(unittest.TestCase):
         contract = json.loads(CONTRACT.read_text())
         return [item["id"] for item in contract["assertions"]]
 
+    def applicable_failure_ids(self) -> list[str]:
+        contract = json.loads(CONTRACT.read_text())
+        return [
+            item["id"]
+            for item in contract["assertions"]
+            if item.get("absent_registration", {}).get("status") != "not-applicable"
+        ]
+
+    def test_generated_machine_skill_is_ignored_by_real_skills_check(self) -> None:
+        repo = self.sandbox / "skills-check-repo"
+        repo.mkdir()
+        (repo / "skills-catalog.json").write_text('{"skills": {}}\n')
+        shutil.copy(ROOT / "skills-ignore.txt", repo / "skills-ignore.txt")
+        check_home = self.sandbox / "skills-check-home"
+        machine = check_home / ".agents" / "skills" / "machine-test-host"
+        machine.mkdir(parents=True, exist_ok=True)
+        (machine / "SKILL.md").write_text(
+            "---\nname: machine-test-host\ndescription: Test machine.\n---\n"
+        )
+        environment = self.environment(
+            HOME=str(check_home),
+            SHARED_SKILLS=str(check_home / ".agents" / "skills"),
+            IMPSTACK_DIR=str(repo),
+        )
+
+        result = subprocess.run(
+            [str(ROOT / "bin" / "skills-sync"), "check"],
+            cwd=repo,
+            env=environment,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        patterns = (ROOT / "skills-ignore.txt").read_text().splitlines()
+        self.assertIn("lark-*", patterns)
+        self.assertIn("machine-*", patterns)
+
+    def test_harness_canaries_run_outside_the_repo(self) -> None:
+        result = self.run_commission("check", "--format", "json")
+
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        contract = json.loads(CONTRACT.read_text())
+        canaries = [
+            item for item in contract["assertions"] if item["id"].endswith(".canary")
+        ]
+        self.assertTrue(canaries)
+        self.assertTrue(
+            all(item.get("working_directory") == "outside-project" for item in canaries)
+        )
+        self.assertTrue(
+            all(
+                item.get("working_directory") == "repo"
+                for item in contract["assertions"]
+                if not item["id"].endswith(".canary")
+            )
+        )
+
     def test_contract_covers_each_declared_mcp_server_for_each_harness(self) -> None:
         contract = json.loads(CONTRACT.read_text())
         servers = json.loads((ROOT / "mcp" / "servers.json").read_text())["servers"]
@@ -165,7 +245,7 @@ class CommissionTests(unittest.TestCase):
         report = json.loads(json_result.stdout)
         self.assertEqual([item["id"] for item in report["assertions"]], self.assertion_ids())
         self.assertTrue(all(item["status"] == "pass" for item in report["assertions"]))
-        for assertion_id in self.assertion_ids():
+        for assertion_id in self.applicable_failure_ids():
             self.assertIn(assertion_id, text_result.stdout)
 
     def test_each_assertion_fails_in_turn_and_names_its_id(self) -> None:
@@ -207,6 +287,48 @@ class CommissionTests(unittest.TestCase):
 
         self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
         self.assertNotIn('stage "OpenCode login"', wizard.read_text())
+        self.assertNotIn('stage "Executor connection"', wizard.read_text())
+
+    def test_unsupported_absent_mcp_is_not_applicable_with_reason(self) -> None:
+        unsupported = (
+            "mcp.context7.codex",
+            "mcp.context7.opencode",
+            "mcp.exa.opencode",
+            "mcp.linear-server.opencode",
+            "mcp.executor.opencode",
+        )
+        result = self.run_commission(
+            "check",
+            "--format",
+            "json",
+            env=self.environment(ABSENT_ASSERTIONS=",".join(unsupported)),
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        report = {
+            item["id"]: item for item in json.loads(result.stdout)["assertions"]
+        }
+        for assertion_id in unsupported:
+            self.assertEqual(report[assertion_id]["status"], "not-applicable")
+            self.assertIn("install.sh cannot register", report[assertion_id]["message"])
+
+    def test_unknown_wizard_stage_id_fails_contract_loading(self) -> None:
+        contract = json.loads(CONTRACT.read_text())
+        contract["assertions"][0]["remediation"] = {
+            "kind": "wizard",
+            "stage_id": "unknown-stage",
+            "stage": "Unknown stage",
+            "statuses": ["fail"],
+        }
+        path = self.sandbox / "unknown-stage.contract.json"
+        path.write_text(json.dumps(contract))
+
+        result = self.run_commission(
+            "check", "--format", "text", "--contract", str(path)
+        )
+
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("invalid remediation", result.stderr)
 
     def test_missing_executor_url_generates_actionable_connection_stage(self) -> None:
         environment = self.environment()
@@ -261,6 +383,12 @@ class CommissionTests(unittest.TestCase):
             statuses = assertion["remediation"].get("statuses")
             self.assertIsInstance(statuses, list, assertion["id"])
             self.assertTrue(statuses, assertion["id"])
+            self.assertIn(assertion.get("working_directory"), ("repo", "outside-project"))
+            if assertion["remediation"]["kind"] == "wizard":
+                self.assertRegex(
+                    assertion["remediation"].get("stage_id", ""),
+                    r"^[a-z0-9]+(?:-[a-z0-9]+)*$",
+                )
 
     def test_probe_writes_complete_record_and_manual_only_wizard(self) -> None:
         record = self.sandbox / "machine-record" / "SKILL.md"
@@ -289,6 +417,9 @@ class CommissionTests(unittest.TestCase):
             self.assertIn(heading, content)
         self.assertNotIn("TODO", content)
         self.assertNotIn("PLACEHOLDER", content)
+        self.assertNotIn(";", content)
+        self.assertIn("Package manager: `", content)
+        self.assertIn("npm 1.2.3", content)
         wizard_text = wizard.read_text()
         self.assertIn('stage "Codex login"', wizard_text)
         self.assertNotIn('stage "Claude login"', wizard_text)
@@ -347,6 +478,16 @@ class CommissionTests(unittest.TestCase):
         self.assertEqual(second.returncode, 0, second.stderr + second.stdout)
         self.assertEqual(record.read_bytes(), first_record)
         self.assertEqual(wizard.read_bytes(), first_wizard)
+
+    def test_proof_lane_installs_command_links(self) -> None:
+        contract = json.loads(CONTRACT.read_text())
+        proofs = [
+            item for item in contract["assertions"] if item["id"].startswith("proof.")
+        ]
+
+        self.assertEqual(len(proofs), 1)
+        self.assertEqual(proofs[0]["id"], "proof.install-bin")
+        self.assertEqual(proofs[0]["command"], ["./install.sh", "bin"])
 
 
 if __name__ == "__main__":
