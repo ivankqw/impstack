@@ -493,7 +493,7 @@ class CommissionTests(unittest.TestCase):
         )
 
         self.assertEqual(result.returncode, 2)
-        self.assertIn(f"wizard template is missing: {template}", result.stderr)
+        self.assertIn("wizard template is missing; install the wizard skill", result.stderr)
         self.assertIn("install the wizard skill", result.stderr)
         self.assertEqual(record.read_text(), "keep record\n")
         self.assertEqual(wizard.read_text(), "keep wizard\n")

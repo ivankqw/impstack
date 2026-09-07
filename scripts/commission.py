@@ -912,9 +912,7 @@ def render_wizard(template: str, report: Report) -> str:
 
 def _load_wizard_template(path: pathlib.Path) -> str:
     if not path.is_file():
-        raise ValueError(
-            f"wizard template is missing: {path}; install the wizard skill"
-        )
+        raise ValueError("wizard template is missing; install the wizard skill")
     template = path.read_text()
     for helper in WIZARD_HELPERS:
         if re.search(rf"(?m)^{re.escape(helper)}\s*\(\)\s*\{{", template) is None:
