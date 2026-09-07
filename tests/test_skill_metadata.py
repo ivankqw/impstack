@@ -1630,10 +1630,16 @@ class SkillMetadataTest(unittest.TestCase):
             )
             original_claude = original_snapshot[".claude/CLAUDE.md"][1]
             new_claude = new_snapshot[".claude/CLAUDE.md"][1]
-            self.assertEqual(new_claude.split(b"\n", 1)[1], original_claude)
+            self.assertEqual(
+                new_claude.split(b"\n", 1)[1],
+                original_claude.split(b"\n", 1)[1],
+            )
             original_codex = original_snapshot["AGENTS.md"][1]
             new_codex = new_snapshot["AGENTS.md"][1]
-            self.assertEqual(new_codex.split(b"\n", 1)[1], original_codex.split(b"\n\n", 1)[1])
+            self.assertEqual(
+                new_codex.split(b"\n", 1)[1],
+                original_codex.split(b"\n", 1)[1],
+            )
 
     def test_install_lists_exact_step_names(self) -> None:
         result = subprocess.run(
