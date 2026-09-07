@@ -464,6 +464,43 @@ class CommissionTests(unittest.TestCase):
             {"id", "status", "message", "command", "exit_code", "remediation"},
         )
 
+    def test_record_projects_versions_and_paths_without_raw_values(self) -> None:
+        sentinel = "s3nt1nel-private-material-581"
+        wrapped_bin = self.sandbox / f"tools-{sentinel}"
+        wrapped_bin.mkdir()
+        for name in ("node", "npx", "npm", "bun", "claude", "codex", "opencode"):
+            self.write_executable(
+                wrapped_bin / name,
+                textwrap.dedent(
+                    f"""\
+                    if [[ "${{1:-}}" == "--version" ]]; then
+                      printf '%s\\n' '{name} 9.8.7 {{"session_token": "{sentinel}"}}'
+                      exit 0
+                    fi
+                    exec "{self.fakebin / name}" "$@"
+                    """
+                ),
+            )
+        record = self.sandbox / "record.md"
+        environment = self.environment(
+            PATH=str(wrapped_bin) + os.pathsep + self.environment()["PATH"],
+            SHELL=str(self.home / sentinel / "shell"),
+            XDG_STATE_HOME=str(self.home / sentinel / "state"),
+        )
+
+        result = self.run_commission(
+            "probe", "--record", str(record), env=environment
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        content = record.read_text()
+        self.assertNotIn(sentinel, content)
+        self.assertIn("Version: `9.8.7`", content)
+        self.assertIn("- Shell: `custom`", content)
+        self.assertIn("- XDG state home: `custom`", content)
+        self.assertIn("- Shared skills: `$HOME/.agents/skills`", content)
+        self.assertIn("| claude | yes | 9.8.7 | yes | pass |", content)
+
     def test_probe_is_byte_idempotent(self) -> None:
         record = self.sandbox / "record.md"
         wizard = self.sandbox / "wizard.sh"
