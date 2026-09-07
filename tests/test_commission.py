@@ -119,9 +119,14 @@ class CommissionTests(unittest.TestCase):
                         ;;
                       *)
                         if [[ "$PWD" == "$IMPSTACK_DIR" || "$PWD" == "$IMPSTACK_DIR/"* ]]; then
-                          printf 'MISSING\\n'
+                          response=MISSING
                         else
-                          printf 'LOADED\\n'
+                          response=LOADED
+                        fi
+                        if [[ "{name}" == opencode && "$*" == *"--format json"* ]]; then
+                          printf '{{"type":"text","part":{{"type":"text","text":"%s"}}}}\\n' "$response"
+                        else
+                          printf '%s\\n' "$response"
                         fi
                         ;;
                     esac

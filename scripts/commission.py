@@ -210,7 +210,7 @@ def load_contract(path: pathlib.Path) -> tuple[Assertion, ...]:
             isinstance(assertion_id, str)
             and assertion_id
             and assertion_id not in seen
-            and item.get("kind") in {"command", "shared-path", "canary"}
+            and item.get("kind") in {"command", "shared-path", "canary", "json-canary"}
             and isinstance(command, list)
             and command
             and all(isinstance(part, str) and part for part in command)
@@ -231,7 +231,7 @@ def load_contract(path: pathlib.Path) -> tuple[Assertion, ...]:
                 and expectation.get("stdout_equals") is not None
             )
             and (
-                item.get("kind") != "canary"
+                item.get("kind") not in {"canary", "json-canary"}
                 or (
                     isinstance(expectation.get("stdout_equals"), str)
                     and bool(expectation.get("stdout_equals"))
@@ -383,6 +383,25 @@ def _safe_output(text: str, assertion_id: str) -> str:
     return " | ".join(lines[-3:])[:600]
 
 
+def _json_canary_output(text: str) -> str:
+    parts: list[str] = []
+    for line in text.splitlines():
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            return ""
+        if not isinstance(event, dict) or event.get("type") != "text":
+            continue
+        part = event.get("part")
+        if not isinstance(part, dict) or part.get("type") != "text":
+            return ""
+        value = part.get("text")
+        if not isinstance(value, str):
+            return ""
+        parts.append(value)
+    return "".join(parts).strip()
+
+
 def _run(assertion: Assertion, context: Context) -> CommandEvidence:
     command = tuple(part.replace("{repo}", str(context.repo)) for part in assertion.command)
     environment = dict(context.environment)
@@ -406,7 +425,11 @@ def _run(assertion: Assertion, context: Context) -> CommandEvidence:
         return CommandEvidence(
             command=shlex.join(assertion.command),
             exit_code=completed.returncode,
-            stdout=_safe_output(completed.stdout, assertion.assertion_id),
+            stdout=(
+                _safe_output(_json_canary_output(completed.stdout), assertion.assertion_id)
+                if assertion.kind == "json-canary"
+                else _safe_output(completed.stdout, assertion.assertion_id)
+            ),
             stderr=_safe_output(completed.stderr, assertion.assertion_id),
         )
     except (FileNotFoundError, subprocess.TimeoutExpired) as error:
@@ -460,7 +483,7 @@ def evaluate(assertions: Sequence[Assertion], context: Context) -> Report:
             )
         status = Status.PASS if matches_exit and matches_stdout else Status.FAIL
         if (
-            assertion.kind == "canary"
+            assertion.kind in {"canary", "json-canary"}
             and matches_exit
             and not matches_stdout
             and evidence.stdout.strip() != "MISSING"

@@ -292,7 +292,7 @@
     },
     {
       "id": "harness.opencode.canary",
-      "kind": "canary",
+      "kind": "json-canary",
       "working_directory": "outside-project",
       "applicability": [
         {
@@ -304,6 +304,8 @@
       "command": [
         "opencode",
         "run",
+        "--format",
+        "json",
         "Do not use tools. If your instructions contain 'A virtue cannot be graded', write LOADED, else write MISSING."
       ],
       "expectation": {
