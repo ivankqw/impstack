@@ -50,11 +50,14 @@ class CommissionTests(unittest.TestCase):
         self.write_executable(
             self.repo / "install.sh",
             common
-            + '# shared path authority: "$AC/bin/skills-sync" resolve-shared\n'
+            + 'AC="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"\n'
+            + '"$AC/bin/skills-sync" resolve-shared >/dev/null\n'
             + "printf '%s\\n' \"$*\"\n",
         )
-        (self.repo / "bin" / "skills-update").write_text(
-            '# shared path authority: "$AC/bin/skills-sync" resolve-shared\n'
+        self.write_executable(
+            self.repo / "bin" / "skills-update",
+            'AC="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"\n'
+            + '"$AC/bin/skills-sync" resolve-shared >/dev/null\n',
         )
         self.write_executable(
             self.repo / "bin" / "skills-sync",
@@ -136,6 +139,22 @@ class CommissionTests(unittest.TestCase):
     def assertion_ids(self) -> list[str]:
         contract = json.loads(CONTRACT.read_text())
         return [item["id"] for item in contract["assertions"]]
+
+    def test_contract_covers_each_declared_mcp_server_for_each_harness(self) -> None:
+        contract = json.loads(CONTRACT.read_text())
+        servers = json.loads((ROOT / "mcp" / "servers.json").read_text())["servers"]
+        actual = {
+            item["id"]
+            for item in contract["assertions"]
+            if item["id"].startswith("mcp.")
+        }
+        expected = {
+            f"mcp.{server['name']}.{harness}"
+            for server in servers
+            for harness in ("claude", "codex", "opencode")
+        }
+
+        self.assertEqual(actual, expected)
 
     def test_every_assertion_passes_and_both_reports_name_each_assertion(self) -> None:
         text_result = self.run_commission("check", "--format", "text")
