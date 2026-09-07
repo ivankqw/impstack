@@ -424,6 +424,8 @@ def render_wizard(template: str, report: Report) -> str:
                 [
                     'ENV_FILE="$HOME/.config/impstack/env"',
                     'mkdir -p "$(dirname "$ENV_FILE")"',
+                    'open_url "https://context7.com/dashboard"',
+                    'step "Create an API key, then copy it before you close the dialog."',
                     'ask_secret CONTEXT7_API_KEY "Context7 API key:"',
                     'write_env CONTEXT7_API_KEY "$CONTEXT7_API_KEY"',
                     'say "To use the saved value, source $ENV_FILE, then run ./install.sh mcp."',

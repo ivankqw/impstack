@@ -229,6 +229,7 @@ class CommissionTests(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         wizard_text = wizard.read_text()
         self.assertEqual(wizard_text.count('stage "Context7 token"'), 1)
+        self.assertIn('open_url "https://context7.com/dashboard"', wizard_text)
         self.assertIn('ask_secret CONTEXT7_API_KEY', wizard_text)
         self.assertIn('ENV_FILE="$HOME/.config/impstack/env"', wizard_text)
         self.assertIn("source $ENV_FILE", wizard_text)
