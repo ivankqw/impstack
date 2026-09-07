@@ -790,9 +790,12 @@ class CommissionTests(unittest.TestCase):
     def test_relative_xdg_state_home_is_normalized_before_commands(self) -> None:
         relative = "relative-state"
         opencode = self.fakebin / "opencode"
+        script = opencode.read_text()
+        anchor = "set -euo pipefail\n"
+        self.assertEqual(script.count(anchor), 1)
         opencode.write_text(
-            opencode.read_text().replace(
-                "set -euo pipefail\n",
+            script.replace(
+                anchor,
                 'set -euo pipefail\nmkdir -p "$XDG_STATE_HOME"\n',
                 1,
             )
