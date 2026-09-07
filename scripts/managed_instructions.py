@@ -109,7 +109,8 @@ def classify(
             f"could not read instruction file: {path}: {error.strerror or error}"
         ) from None
     if existing == desired:
-        return Plan(key, path, desired, "noop", existing, mode)
+        action = "noop" if path.stat().st_mode & 0o777 == mode else "replace"
+        return Plan(key, path, desired, action, existing, mode)
     if recorded == file_digest(existing):
         return Plan(key, path, desired, "replace", existing, mode)
     if existing == legacy:

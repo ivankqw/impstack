@@ -935,7 +935,7 @@ def _load_wizard_template(path: pathlib.Path) -> str:
 
 
 def _artifact_plan(artifact: Artifact) -> managed.Plan:
-    plan = managed.classify(
+    return managed.classify(
         artifact.key,
         artifact.path,
         artifact.content,
@@ -943,16 +943,6 @@ def _artifact_plan(artifact: Artifact) -> managed.Plan:
         None,
         mode=artifact.mode,
     )
-    if plan.action == "noop" and artifact.path.stat().st_mode & 0o777 != artifact.mode:
-        return managed.Plan(
-            plan.key,
-            plan.path,
-            plan.desired,
-            "replace",
-            plan.existing,
-            plan.mode,
-        )
-    return plan
 
 
 def _write_artifacts(artifacts: Sequence[Artifact], force: bool) -> None:
