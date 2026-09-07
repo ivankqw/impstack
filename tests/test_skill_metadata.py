@@ -806,7 +806,8 @@ class SkillMetadataTest(unittest.TestCase):
 
             previous_umask = os.umask(0o022)
             try:
-                protected = managed_instructions.protect(plan)
+                with contextlib.redirect_stdout(io.StringIO()):
+                    protected = managed_instructions.protect(plan)
             finally:
                 os.umask(previous_umask)
 
