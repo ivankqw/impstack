@@ -276,6 +276,36 @@ class CommissionTests(unittest.TestCase):
             "canary response was indeterminate",
         )
 
+    def test_opencode_canary_reads_raw_json_text_events(self) -> None:
+        self.write_executable(
+            self.fakebin / "opencode",
+            textwrap.dedent(
+                """\
+                if [[ "$*" == *"--format json"* ]]; then
+                  printf '%s\n' '{"type":"text","part":{"type":"text","text":"LOADED"}}'
+                else
+                  printf 'decorated output: LOADED\n'
+                fi
+                """
+            ),
+        )
+        assertion = next(
+            item
+            for item in commission_module.load_contract(CONTRACT)
+            if item.assertion_id == "harness.opencode.canary"
+        )
+        outside = self.sandbox / "outside"
+        outside.mkdir()
+        context = commission_module.Context(
+            self.repo, self.home, self.environment(), outside
+        )
+
+        report = commission_module.evaluate((assertion,), context)
+
+        self.assertEqual(assertion.kind, "json-canary")
+        self.assertEqual(assertion.command[0:4], ("opencode", "run", "--format", "json"))
+        self.assertEqual(report.results[0].status, commission_module.Status.PASS)
+
     def test_contract_covers_each_declared_mcp_server_for_each_harness(self) -> None:
         contract = json.loads(CONTRACT.read_text())
         servers = json.loads((ROOT / "mcp" / "servers.json").read_text())["servers"]
