@@ -522,10 +522,25 @@ class CommissionTests(unittest.TestCase):
             "check", "--format", "text", "--contract", str(context7_path)
         )
 
+        contract = json.loads(CONTRACT.read_text())
+        context7 = next(
+            item for item in contract["assertions"]
+            if item["id"] == "mcp.context7.codex"
+        )
+        context7["absent_registration"]["reason"] = ""
+        empty_reason_path = self.sandbox / "empty-reason.contract.json"
+        empty_reason_path.write_text(json.dumps(contract))
+
+        empty_reason_result = self.run_commission(
+            "check", "--format", "text", "--contract", str(empty_reason_path)
+        )
+
         self.assertEqual(canary_result.returncode, 2)
         self.assertIn("invalid assertion", canary_result.stderr)
         self.assertEqual(context7_result.returncode, 2)
         self.assertIn("invalid absent registration", context7_result.stderr)
+        self.assertEqual(empty_reason_result.returncode, 2)
+        self.assertIn("invalid absent registration", empty_reason_result.stderr)
 
     def test_probe_writes_complete_record_and_manual_only_wizard(self) -> None:
         record = self.sandbox / "machine-record" / "SKILL.md"
