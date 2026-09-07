@@ -50,6 +50,10 @@ class CommissionTests(unittest.TestCase):
             case ",${ABSENT_ASSERTIONS:-}," in
               *,$id,*) export COMMISSION_FAKE_ABSENT=true ;;
             esac
+            if [[ "${CANARY_ASSERTION_ID:-}" == "$id" ]]; then
+              printf '%s\n' "${CANARY_RESPONSE:-}"
+              exit 0
+            fi
             """
         )
         self.write_executable(
@@ -220,6 +224,30 @@ class CommissionTests(unittest.TestCase):
                 for item in contract["assertions"]
                 if not item["id"].endswith(".canary")
             )
+        )
+
+    def test_ambiguous_canary_response_is_indeterminate(self) -> None:
+        result = self.run_commission(
+            "check",
+            "--format",
+            "json",
+            env=self.environment(
+                CANARY_ASSERTION_ID="harness.codex.canary",
+                CANARY_RESPONSE=(
+                    "My instructions do not contain that phrase, so the answer is not "
+                    "LOADED; it is MISSING"
+                ),
+            ),
+        )
+
+        report = {
+            item["id"]: item for item in json.loads(result.stdout)["assertions"]
+        }
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(report["harness.codex.canary"]["status"], "indeterminate")
+        self.assertEqual(
+            report["harness.codex.canary"]["message"],
+            "canary response was indeterminate",
         )
 
     def test_contract_covers_each_declared_mcp_server_for_each_harness(self) -> None:
