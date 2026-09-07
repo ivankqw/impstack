@@ -386,8 +386,9 @@ class CommissionTests(unittest.TestCase):
         wizard_text = wizard.read_text()
         self.assertEqual(wizard_text.count('stage "Executor connection"'), 1)
         self.assertIn('ask_secret EXECUTOR_MCP_URL', wizard_text)
-        self.assertIn('open_url "$EXECUTOR_MCP_URL"', wizard_text)
-        self.assertIn("complete the browser sign-in", wizard_text)
+        self.assertIn('open_url "https://executor.sh"', wizard_text)
+        self.assertNotIn('open_url "$EXECUTOR_MCP_URL"', wizard_text)
+        self.assertIn("copy the tenant MCP URL", wizard_text)
 
     def test_context7_failures_generate_one_secret_input_stage(self) -> None:
         record = self.sandbox / "record.md"
