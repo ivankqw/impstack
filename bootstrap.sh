@@ -29,6 +29,9 @@ else
 fi
 
 PSTACK_REVISION="$(sed -n '1p' "$DEST/pstack-revision.txt")"
+SHARED_SKILLS="$("$DEST/bin/skills-sync" resolve-shared)"
+SKILLS_LOCK_FILE="$("$DEST/bin/skills-sync" resolve-lock)"
+export SHARED_SKILLS SKILLS_LOCK_FILE
 if ! printf '%s\n' "$PSTACK_REVISION" | grep -Eq '^[0-9a-f]{40}$'; then
   echo "invalid pstack revision in $DEST/pstack-revision.txt" >&2
   exit 1
@@ -37,17 +40,26 @@ if [ -e "$PSTACK_DIR" ] && [ ! -d "$PSTACK_DIR/.git" ]; then
   echo "pstack path exists but is not a git checkout: $PSTACK_DIR" >&2
   exit 1
 fi
+fetch_pstack_revision() {
+  if git -C "$PSTACK_DIR" fetch --depth 1 origin "$PSTACK_REVISION"; then
+    return 0
+  fi
+  echo "could not fetch pinned pstack revision $PSTACK_REVISION; it may be missing or the remote may restrict direct revision fetches; check $DEST/pstack-revision.txt" >&2
+  return 1
+}
 if [ -d "$PSTACK_DIR/.git" ]; then
   if [ -n "$(git -C "$PSTACK_DIR" status --porcelain)" ]; then
     echo "pstack checkout has local changes; leaving it unchanged: $PSTACK_DIR" >&2
     exit 1
   fi
   echo "== fetching pinned pstack revision"
-  git -C "$PSTACK_DIR" fetch origin "$PSTACK_REVISION"
+  fetch_pstack_revision || exit 1
 else
-  echo "== cloning pstack into $PSTACK_DIR"
+  echo "== fetching pinned pstack revision into $PSTACK_DIR"
   mkdir -p "$(dirname "$PSTACK_DIR")"
-  git clone "$PSTACK_REPO" "$PSTACK_DIR"
+  git init "$PSTACK_DIR"
+  git -C "$PSTACK_DIR" remote add origin "$PSTACK_REPO"
+  fetch_pstack_revision || exit 1
 fi
 if ! git -C "$PSTACK_DIR" cat-file -e "$PSTACK_REVISION^{commit}" 2>/dev/null; then
   echo "pstack revision is missing after fetch: $PSTACK_REVISION" >&2
@@ -59,7 +71,7 @@ python3 "$DEST/scripts/skill_metadata.py" preflight-pstack \
   "$PSTACK_DIR" "$DEST/pstack-revision.txt"
 
 set +e
-"$DEST/install.sh"
+"$DEST/install.sh" "$@"
 install_rc=$?
 set -e
 
@@ -67,8 +79,8 @@ if [ "$install_rc" -ne 0 ]; then
   exit "$install_rc"
 fi
 if ! python3 "$DEST/scripts/skill_metadata.py" require-skill-name \
-  "$HOME/.agents/skills/herdr/SKILL.md" herdr; then
-  echo "Herdr restore failed: invalid $HOME/.agents/skills/herdr/SKILL.md" >&2
+  "$SHARED_SKILLS/herdr/SKILL.md" herdr; then
+  echo "Herdr restore failed: invalid $SHARED_SKILLS/herdr/SKILL.md" >&2
   exit 1
 fi
 

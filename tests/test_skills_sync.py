@@ -562,6 +562,7 @@ class SkillsSyncTests(unittest.TestCase):
         npx.write_text(
             "#!/usr/bin/env bash\n"
             "set -euo pipefail\n"
+            '[ "$1" = --yes ] || { echo "npx --yes must precede the package" >&2; exit 64; }\n'
             'printf \'%s\\n\' "$*" > "$HOME/npx.args"\n'
             'mkdir -p "$HOME/.agents/skills/alpha"\n'
             "printf '%s\\n' '---' 'name: alpha' 'description: test' '---' "
@@ -579,7 +580,7 @@ class SkillsSyncTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
         self.assertEqual(
             (home / "npx.args").read_text(),
-            "skills add example/alpha --skill alpha -g -y\n",
+            "--yes skills add example/alpha --skill alpha -g -y\n",
         )
         self.assertTrue((home / ".agents" / "skills" / "alpha" / "SKILL.md").is_file())
 
@@ -597,11 +598,12 @@ class SkillsSyncTests(unittest.TestCase):
         npx.write_text(
             "#!/usr/bin/env bash\n"
             "set -euo pipefail\n"
-            'printf \'%s\\n\' "$5" >> "$HOME/attempts"\n'
-            'if [ "$5" = beta ]; then exit 7; fi\n'
-            'mkdir -p "$HOME/.agents/skills/$5"\n'
-            "printf '%s\\n' '---' \"name: $5\" 'description: test' '---' "
-            '> "$HOME/.agents/skills/$5/SKILL.md"\n'
+            '[ "$1" = --yes ] || exit 64\n'
+            'printf \'%s\\n\' "$6" >> "$HOME/attempts"\n'
+            'if [ "$6" = beta ]; then exit 7; fi\n'
+            'mkdir -p "$HOME/.agents/skills/$6"\n'
+            "printf '%s\\n' '---' \"name: $6\" 'description: test' '---' "
+            '> "$HOME/.agents/skills/$6/SKILL.md"\n'
         )
         npx.chmod(0o755)
 
@@ -669,6 +671,9 @@ class SkillsSyncTests(unittest.TestCase):
             candidate.parent.mkdir(parents=True, exist_ok=True)
             candidate.write_text("#!/bin/sh\n")
             candidate.chmod(0o755)
+            node = candidate.with_name("node")
+            node.write_text("#!/bin/sh\n")
+            node.chmod(0o755)
 
         overrides = {
             "NVM_BIN": str(nvm_bin.parent),
@@ -690,6 +695,7 @@ class SkillsSyncTests(unittest.TestCase):
                     scheduled_path.split(os.pathsep)[0], str(expected.parent)
                 )
             expected.unlink()
+            expected.with_name("node").unlink()
             if index == 1:
                 overrides.pop("NVM_BIN")
 
@@ -697,6 +703,8 @@ class SkillsSyncTests(unittest.TestCase):
         linuxbrew.parent.mkdir(parents=True)
         linuxbrew.write_text("#!/bin/sh\n")
         linuxbrew.chmod(0o755)
+        linuxbrew.with_name("node").write_text("#!/bin/sh\n")
+        linuxbrew.with_name("node").chmod(0o755)
         result = self.run_cli(repo, home, "schedule", path=str(path_bin))
 
         self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
@@ -712,6 +720,8 @@ class SkillsSyncTests(unittest.TestCase):
         npx.parent.mkdir(parents=True)
         npx.write_text("#!/bin/sh\n")
         npx.chmod(0o755)
+        npx.with_name("node").write_text("#!/bin/sh\n")
+        npx.with_name("node").chmod(0o755)
         expected = int.from_bytes(
             hashlib.sha256(socket.gethostname().encode()).digest()[:8], "big"
         ) % 60
@@ -723,6 +733,62 @@ class SkillsSyncTests(unittest.TestCase):
             f"<key>Minute</key>\n    <integer>{expected}</integer>", result.stdout
         )
         self.assertTrue(result.stdout.splitlines()[-1].startswith(f"{expected} 9 "))
+
+    def test_relative_skill_state_paths_are_resolved_before_export(self) -> None:
+        _, home = self.make_home()
+        repo = pathlib.Path(tempfile.mkdtemp())
+        self.addCleanup(lambda: shutil.rmtree(repo))
+        fakebin = pathlib.Path(tempfile.mkdtemp())
+        self.addCleanup(lambda: shutil.rmtree(fakebin))
+        for name in ("node", "npx"):
+            executable = fakebin / name
+            executable.write_text("#!/bin/sh\n")
+            executable.chmod(0o755)
+        overrides = {
+            "SHARED_SKILLS": "relative/skills",
+            "SKILLS_LOCK_FILE": "relative/state/lock.json",
+        }
+        expected_shared = (repo / "relative/skills").resolve()
+        expected_lock = (repo / "relative/state/lock.json").resolve()
+
+        shared = self.run_cli(repo, home, "resolve-shared", path=str(fakebin), env_overrides=overrides)
+        lock = self.run_cli(repo, home, "resolve-lock", path=str(fakebin), env_overrides=overrides)
+        schedule = self.run_cli(repo, home, "schedule", path=str(fakebin), env_overrides=overrides)
+
+        self.assertEqual(shared.stdout.strip(), str(expected_shared))
+        self.assertEqual(lock.stdout.strip(), str(expected_lock))
+        self.assertIn(str(expected_shared), schedule.stdout)
+        self.assertIn(str(expected_lock), schedule.stdout)
+
+    def test_relative_xdg_state_home_uses_one_resolved_path(self) -> None:
+        _, home = self.make_home()
+        repo = pathlib.Path(tempfile.mkdtemp())
+        self.addCleanup(lambda: shutil.rmtree(repo))
+        fakebin = pathlib.Path(tempfile.mkdtemp())
+        self.addCleanup(lambda: shutil.rmtree(fakebin))
+        for name in ("node", "npx"):
+            executable = fakebin / name
+            executable.write_text("#!/bin/sh\n")
+            executable.chmod(0o755)
+        expected_xdg = (repo / "relative-state").resolve()
+        overrides = {
+            "XDG_STATE_HOME": "relative-state",
+            "SKILLS_LOCK_FILE": "relative-config/lock.json",
+        }
+        expected_lock = (repo / "relative-config/lock.json").resolve()
+
+        lock = self.run_cli(repo, home, "resolve-lock", path=str(fakebin), env_overrides=overrides)
+        schedule = self.run_cli(repo, home, "schedule", path=str(fakebin), env_overrides=overrides)
+        prepared = self.run_cli(repo, home, "prepare-state", path=str(fakebin), env_overrides=overrides)
+
+        self.assertEqual(lock.stdout.strip(), str(expected_lock))
+        self.assertEqual(prepared.returncode, 0, prepared.stderr)
+        self.assertIn(f"XDG_STATE_HOME={expected_xdg}", schedule.stdout)
+        self.assertNotIn("XDG_STATE_HOME=relative-state", schedule.stdout)
+        self.assertEqual(
+            (expected_xdg / "skills/.skill-lock.json").resolve(strict=False),
+            expected_lock,
+        )
 
     def test_node_resolution_sorts_manager_versions_numerically(self) -> None:
         _, home = self.make_home()
@@ -777,6 +843,8 @@ class SkillsSyncTests(unittest.TestCase):
             '#!/usr/bin/env bash\nprintf \'%s\\n\' "$*" > "$HOME/npx.args"\n'
         )
         npx.chmod(0o755)
+        npx.with_name("node").write_text("#!/bin/sh\n")
+        npx.with_name("node").chmod(0o755)
         fakebin = home / "bin"
         fakebin.mkdir()
         for name in ("bash", "chmod", "dirname", "mkdir", "python3", "readlink"):
@@ -800,7 +868,7 @@ class SkillsSyncTests(unittest.TestCase):
         )
 
         self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
-        self.assertEqual((home / "npx.args").read_text(), "skills update -g\n")
+        self.assertEqual((home / "npx.args").read_text(), "--yes skills update -g\n")
 
 
 if __name__ == "__main__":

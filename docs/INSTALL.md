@@ -135,7 +135,26 @@ Use `bin/skills-sync run --no-update` to restore and normalize without updating 
 
 Run `bin/skills-sync schedule` to print a daily macOS `launchd` definition and a Linux `cron` line.
 The command derives the minute from the hostname and includes the resolved `npx` directory in
-`PATH`.
+`PATH`. It also records the resolved skill directory and lock file.
+
+The skill state paths use this precedence:
+
+1. Use `SHARED_SKILLS` for the skill directory when it is set.
+2. Otherwise, use `$HOME/.agents/skills`.
+3. Use `SKILLS_LOCK_FILE` for the lock file when it is set.
+4. Otherwise, use `$XDG_STATE_HOME/skills/.skill-lock.json` when `XDG_STATE_HOME` is set.
+5. Otherwise, use `$HOME/.agents/.skill-lock.json`.
+
+The installer exports both resolved paths to update commands. Generated schedules record the same
+paths. The old `$HOME/skills-lock.json` fallback is not part of this contract.
+
+The installer manages `~/.claude/CLAUDE.md` and `~/AGENTS.md` with a source marker and checksum.
+An unchanged reinstall does not rewrite these files. The installer backs up an existing file before
+it replaces that file. If an existing file differs and provenance is unknown, the named
+`instructions` step prints a diff and returns a nonzero status. A full install continues with later
+steps and returns a nonzero status after they finish. Examine the backup before you run
+`./install.sh --force`.
+The installer keeps the five most recent backups for each managed file.
 
 Run the Claude Code and Codex verification checks after an update. Repeat the Hermes canary if you
 use the experimental setup.

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import io
 import json
 import os
@@ -24,7 +25,7 @@ TEST_SYSTEM_PATH = os.pathsep.join(("/usr/bin", "/bin"))
 
 def hermetic_test_path(fakebin: pathlib.Path) -> str:
     path = os.pathsep.join((str(fakebin), TEST_SYSTEM_PATH))
-    for command in ("claude", "codex"):
+    for command in ("claude", "codex", "opencode"):
         resolved = shutil.which(command, path=path)
         if resolved is None:
             continue
@@ -293,7 +294,17 @@ class SkillMetadataTest(unittest.TestCase):
             executable = fakebin / name
             executable.write_text(
                 "#!/usr/bin/env bash\n"
+                "set -euo pipefail\n"
+                "if [ \"$1 $2\" = \"mcp get\" ]; then\n"
+                f"  [ -f \"$HOME/{name}-$3.registered\" ]\n"
+                "  exit $?\n"
+                "fi\n"
                 f"printf '%s\\n' \"$*\" >> \"$HOME/{name}-mcp.args\"\n"
+                + (
+                    f'touch "$HOME/{name}-$7.registered"\n'
+                    if name == "claude"
+                    else f'touch "$HOME/{name}-$3.registered"\n'
+                )
             )
             executable.chmod(0o755)
 
@@ -333,11 +344,637 @@ class SkillMetadataTest(unittest.TestCase):
         npx = fakebin / "npx"
         npx.write_text("#!/usr/bin/env bash\nexit 0\n")
         npx.chmod(0o755)
+        node = fakebin / "node"
+        node.write_text("#!/usr/bin/env bash\nexit 0\n")
+        node.chmod(0o755)
         self.write_fake_mcp_clis(fakebin)
         env = self.base_runtime_env(home, fakebin, pstack=pstack)
         env["CONTEXT7_API_KEY"] = "test-token"
         env["EXECUTOR_MCP_URL"] = "https://executor.example/mcp"
         return home, env
+
+    def test_preflight_fails_early_with_all_node_search_locations(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = pathlib.Path(temp)
+            home = root / "home"
+            fakebin = root / "bin"
+            home.mkdir()
+            fakebin.mkdir()
+            for command in ("bash", "dirname", "python3", "uname"):
+                source = shutil.which(command, path=TEST_SYSTEM_PATH)
+                self.assertIsNotNone(source)
+                (fakebin / command).symlink_to(source)
+            pstack = self.create_fake_pstack_checkout(root)
+            self.write_fake_git(fakebin, (ROOT / "pstack-revision.txt").read_text().strip())
+            env = self.base_runtime_env(home, fakebin, pstack=pstack)
+            env["PATH"] = str(fakebin)
+            env.update(
+                NVM_BIN=str(root / "nvm-bin"),
+                MISE_DATA_DIR=str(root / "mise"),
+                ASDF_DATA_DIR=str(root / "asdf"),
+                HOMEBREW_PREFIX=str(root / "brew"),
+            )
+
+            result = subprocess.run(
+                [str(ROOT / "install.sh"), "preflight"],
+                cwd=ROOT,
+                env=env,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertNotEqual(result.returncode, 0)
+            for location in (
+                env["PATH"],
+                str(root / "nvm-bin" / "node"),
+                str(root / "mise" / "installs" / "node" / "*/bin/node"),
+                str(root / "asdf" / "installs" / "nodejs" / "*/bin/node"),
+                str(root / "brew" / "bin" / "node"),
+            ):
+                self.assertIn(location, result.stderr)
+            self.assertFalse((home / ".claude").exists())
+
+    def test_preflight_names_every_command_disabled_without_bun(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            home, env = self.create_valid_install_fixture(pathlib.Path(temp))
+
+            result = subprocess.run(
+                [str(ROOT / "install.sh"), "preflight"], cwd=ROOT, env=env,
+                text=True, capture_output=True, check=False,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+            pstack = pathlib.Path(env["PSTACK_DIR"]).resolve()
+            self.assertIn(
+                str(pstack / "plugins/pstack/skills/poteto-mode/scripts/watch-pr/watch-pr"),
+                result.stdout,
+            )
+            self.assertIn(
+                "bun " + str(pstack / "plugins/pstack/skills/poteto-mode/scripts/orch/orch.ts"),
+                result.stdout,
+            )
+
+    def test_preflight_requires_a_harness_unless_explicitly_disabled(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = pathlib.Path(temp)
+            _, env = self.create_valid_install_fixture(root)
+            for harness in ("claude", "codex"):
+                (root / "bin" / harness).unlink()
+
+            rejected = subprocess.run(
+                [str(ROOT / "install.sh"), "preflight"], cwd=ROOT, env=env,
+                text=True, capture_output=True, check=False,
+            )
+            allowed = subprocess.run(
+                [str(ROOT / "install.sh"), "--no-harness", "preflight"],
+                cwd=ROOT, env=env, text=True, capture_output=True, check=False,
+            )
+
+            self.assertNotEqual(rejected.returncode, 0)
+            self.assertIn("claude, codex, or opencode", rejected.stderr)
+            self.assertEqual(allowed.returncode, 0, allowed.stderr + allowed.stdout)
+            self.assertIn("detected harnesses: none (--no-harness)", allowed.stdout)
+
+    def test_preflight_rejects_a_non_executable_harness_file(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = pathlib.Path(temp)
+            _, env = self.create_valid_install_fixture(root)
+            (root / "bin/codex").unlink()
+            claude = root / "bin/claude"
+            claude.chmod(0o644)
+
+            result = subprocess.run(
+                [str(ROOT / "install.sh"), "preflight"], cwd=ROOT, env=env,
+                text=True, capture_output=True, check=False,
+            )
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("missing harness", result.stderr)
+
+    def test_no_harness_mcp_step_avoids_empty_array_expansion(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = pathlib.Path(temp)
+            _, env = self.create_valid_install_fixture(root)
+            for harness in ("claude", "codex"):
+                (root / "bin" / harness).unlink()
+
+            result = subprocess.run(
+                [str(ROOT / "install.sh"), "--no-harness", "mcp"],
+                cwd=ROOT, env=env, text=True, capture_output=True, check=False,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+            install = (ROOT / "install.sh").read_text()
+            self.assertNotIn('${#detected_harnesses[@]}', install)
+            self.assertNotIn(
+                'python3 - "$AC/mcp/servers.json" "${detected_harnesses[@]}"',
+                install,
+            )
+
+    def test_mcp_reports_genuine_registration_errors(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = pathlib.Path(temp)
+            _, env = self.create_valid_install_fixture(root)
+            (root / "bin" / "codex").unlink()
+            claude = root / "bin" / "claude"
+            claude.write_text(
+                "#!/usr/bin/env bash\n"
+                "if [ \"$1 $2\" = \"mcp get\" ]; then echo 'server not found' >&2; exit 1; fi\n"
+                "echo 'configuration write failed' >&2\n"
+                "exit 23\n"
+            )
+
+            result = subprocess.run(
+                [str(ROOT / "install.sh"), "mcp"], cwd=ROOT, env=env,
+                text=True, capture_output=True, check=False,
+            )
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("error context7 for Claude: configuration write failed", result.stderr)
+
+    def test_mcp_does_not_classify_misleading_error_text_as_success(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = pathlib.Path(temp)
+            _, env = self.create_valid_install_fixture(root)
+            messages = {
+                "claude": "local MCP settings file already exists at a legacy path and could not be migrated; write aborted",
+                "codex": "internal error: worker pool rejected the request as unauthorized after a panic",
+            }
+            for harness, message in messages.items():
+                executable = root / "bin" / harness
+                executable.write_text(
+                    "#!/usr/bin/env bash\n"
+                    "if [ \"$1 $2\" = \"mcp get\" ]; then echo 'server not found' >&2; exit 1; fi\n"
+                    f"echo {message!r} >&2\n"
+                    "exit 23\n"
+                )
+
+            result = subprocess.run(
+                [str(ROOT / "install.sh"), "mcp"], cwd=ROOT, env=env,
+                text=True, capture_output=True, check=False,
+            )
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertNotIn("already present", result.stdout)
+            self.assertNotIn("authentication required", result.stdout)
+            self.assertIn("write aborted", result.stderr)
+            self.assertIn("after a panic", result.stderr)
+
+    def test_mcp_accepts_a_present_server_after_add_reports_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = pathlib.Path(temp)
+            _, env = self.create_valid_install_fixture(root)
+            (root / "bin/codex").unlink()
+            (root / "bin/claude").write_text(
+                "#!/usr/bin/env bash\n"
+                "marker=\"$HOME/claude-$3.registered\"\n"
+                "if [ \"$1 $2\" = \"mcp get\" ]; then test -f \"$marker\"; exit; fi\n"
+                "touch \"$HOME/claude-$7.registered\"\n"
+                "echo 'duplicate rejected' >&2\n"
+                "exit 23\n"
+            )
+
+            result = subprocess.run(
+                [str(ROOT / "install.sh"), "mcp"], cwd=ROOT, env=env,
+                text=True, capture_output=True, check=False,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+            self.assertIn("already present context7 for Claude", result.stdout)
+            self.assertNotIn("error context7", result.stderr)
+
+    def test_mcp_rejects_an_absent_server_after_add_reports_success(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = pathlib.Path(temp)
+            _, env = self.create_valid_install_fixture(root)
+            (root / "bin/codex").unlink()
+            (root / "bin/claude").write_text(
+                "#!/usr/bin/env bash\n"
+                "if [ \"$1 $2\" = \"mcp get\" ]; then exit 1; fi\n"
+                "exit 0\n"
+            )
+
+            result = subprocess.run(
+                [str(ROOT / "install.sh"), "mcp"], cwd=ROOT, env=env,
+                text=True, capture_output=True, check=False,
+            )
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn(
+                "error context7 for Claude: registration command succeeded but the server is absent",
+                result.stderr,
+            )
+            self.assertNotIn("registered context7 for Claude", result.stdout)
+
+    def test_install_propagates_explicit_skill_state_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = pathlib.Path(temp)
+            _, env = self.create_valid_install_fixture(root)
+            shared = root / "custom-state" / "skills"
+            lock = root / "custom-state" / "lock.json"
+            shared.mkdir(parents=True)
+            self.populate_imported_skills(shared)
+            env["SHARED_SKILLS"] = str(shared)
+            env["SKILLS_LOCK_FILE"] = str(lock)
+
+            result = subprocess.run(
+                [str(ROOT / "install.sh"), "skills"], cwd=ROOT, env=env,
+                text=True, capture_output=True, check=False,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+            self.assertTrue((shared / "architect").is_symlink())
+            self.assertFalse((pathlib.Path(env["HOME"]) / ".agents/skills/architect").is_symlink())
+
+    def test_instruction_step_backs_up_and_refuses_operator_edits(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = pathlib.Path(temp)
+            home, env = self.create_valid_install_fixture(root)
+            claude_file = home / ".claude" / "CLAUDE.md"
+            codex_file = home / "AGENTS.md"
+            claude_file.parent.mkdir(parents=True)
+            claude_file.write_text("operator Claude instructions\n")
+            codex_file.write_text("operator Codex instructions\n")
+
+            result = subprocess.run(
+                [str(ROOT / "install.sh"), "instructions"], cwd=ROOT, env=env,
+                text=True, capture_output=True, check=False,
+            )
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertEqual(claude_file.read_text(), "operator Claude instructions\n")
+            self.assertEqual(codex_file.read_text(), "operator Codex instructions\n")
+            self.assertEqual(len(tuple(claude_file.parent.glob("CLAUDE.md.impstack-backup.*"))), 1)
+            self.assertEqual(len(tuple(home.glob("AGENTS.md.impstack-backup.*"))), 1)
+            self.assertIn("--- existing:", result.stdout)
+            self.assertIn("use --force", result.stderr)
+
+    def test_instruction_step_rejects_an_unrecorded_forged_marker(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = pathlib.Path(temp)
+            home, env = self.create_valid_install_fixture(root)
+            target = home / "AGENTS.md"
+            body = b"operator-owned instructions\n"
+            digest = hashlib.sha256(body).hexdigest()
+            forged = f"<!-- impstack-managed: instructions sha256={digest} -->\n".encode() + body
+            target.write_bytes(forged)
+
+            result = subprocess.run(
+                [str(ROOT / "install.sh"), "instructions"], cwd=ROOT, env=env,
+                text=True, capture_output=True, check=False,
+            )
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertEqual(target.read_bytes(), forged)
+            backups = tuple(home.glob("AGENTS.md.impstack-backup.*"))
+            self.assertEqual(len(backups), 1)
+            self.assertEqual(backups[0].read_bytes(), forged)
+            state = json.loads((home / ".local/state/impstack/instructions.json").read_text())
+            self.assertIn(".claude/CLAUDE.md", state["targets"])
+            self.assertNotIn("AGENTS.md", state["targets"])
+
+    def test_instruction_step_recovers_when_state_is_lost_but_files_are_identical(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = pathlib.Path(temp)
+            home, env = self.create_valid_install_fixture(root)
+            command = [str(ROOT / "install.sh"), "instructions"]
+            first = subprocess.run(command, cwd=ROOT, env=env, text=True, capture_output=True)
+            self.assertEqual(first.returncode, 0, first.stderr + first.stdout)
+            targets = (home / ".claude/CLAUDE.md", home / "AGENTS.md")
+            before = [(path.read_bytes(), path.stat().st_ino, path.stat().st_mtime_ns) for path in targets]
+            (home / ".local/state/impstack/instructions.json").unlink()
+
+            result = subprocess.run(command, cwd=ROOT, env=env, text=True, capture_output=True)
+
+            self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+            self.assertEqual(before, [(path.read_bytes(), path.stat().st_ino, path.stat().st_mtime_ns) for path in targets])
+            self.assertFalse(any(home.rglob("*.impstack-backup.*")))
+
+    def test_instruction_step_reports_corrupt_state_without_a_traceback(self) -> None:
+        corrupt_states = (
+            b"{broken\n",
+            b'{"version": 1, "targets": {"AGENTS.md": null}}\n',
+            b"\xff\n",
+        )
+        for content in corrupt_states:
+            with self.subTest(content=content), tempfile.TemporaryDirectory() as temp:
+                root = pathlib.Path(temp)
+                home, env = self.create_valid_install_fixture(root)
+                state_path = home / ".local/state/impstack/instructions.json"
+                state_path.parent.mkdir(parents=True)
+                state_path.write_bytes(content)
+
+                result = subprocess.run(
+                    [str(ROOT / "install.sh"), "instructions"], cwd=ROOT, env=env,
+                    text=True, capture_output=True, check=False,
+                )
+
+                self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+                self.assertEqual(len(result.stderr.splitlines()), 1, result.stderr)
+                self.assertIn(str(state_path), result.stderr)
+                self.assertIn("remove or repair", result.stderr)
+                self.assertNotIn("Traceback", result.stderr)
+                self.assertTrue((home / ".claude/CLAUDE.md").is_file())
+                self.assertTrue((home / "AGENTS.md").is_file())
+                repaired = json.loads(state_path.read_text())
+                self.assertEqual(set(repaired["targets"]), {".claude/CLAUDE.md", "AGENTS.md"})
+
+    def test_instruction_step_applies_clean_targets_when_another_is_blocked(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = pathlib.Path(temp)
+            private = root / "private"
+            private.mkdir()
+            private_agents = private / "AGENTS.md"
+            private_agents.write_text("private version one\n")
+            home, env = self.create_valid_install_fixture(root)
+            env["PRIVATE_CONFIG"] = str(private)
+            command = [str(ROOT / "install.sh"), "instructions"]
+            first = subprocess.run(command, cwd=ROOT, env=env, text=True, capture_output=True)
+            self.assertEqual(first.returncode, 0, first.stderr + first.stdout)
+            claude = home / ".claude/CLAUDE.md"
+            claude.write_text("operator Claude edit\n")
+            private_agents.write_text("private version two\n")
+
+            result = subprocess.run(command, cwd=ROOT, env=env, text=True, capture_output=True)
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertEqual(claude.read_text(), "operator Claude edit\n")
+            self.assertIn("private version two", (home / "AGENTS.md").read_text())
+            self.assertIn(str(claude), result.stderr)
+
+    def test_instruction_step_is_a_checked_noop_and_force_keeps_backup(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = pathlib.Path(temp)
+            home, env = self.create_valid_install_fixture(root)
+            command = [str(ROOT / "install.sh"), "instructions"]
+            first = subprocess.run(command, cwd=ROOT, env=env, text=True, capture_output=True)
+            self.assertEqual(first.returncode, 0, first.stderr + first.stdout)
+            targets = (home / ".claude/CLAUDE.md", home / "AGENTS.md")
+            before = [(path.read_bytes(), path.stat().st_ino, path.stat().st_mtime_ns) for path in targets]
+            for path in targets:
+                marker, body = path.read_bytes().split(b"\n", 1)
+                digest = re.search(rb"sha256=([0-9a-f]{64})", marker)
+                self.assertIsNotNone(digest)
+                self.assertEqual(digest.group(1).decode(), hashlib.sha256(body).hexdigest())
+
+            second = subprocess.run(command, cwd=ROOT, env=env, text=True, capture_output=True)
+            self.assertEqual(second.returncode, 0, second.stderr + second.stdout)
+            self.assertEqual(before, [(path.read_bytes(), path.stat().st_ino, path.stat().st_mtime_ns) for path in targets])
+
+            targets[0].write_text("operator replacement\n")
+            forced = subprocess.run(
+                [str(ROOT / "install.sh"), "--force", "instructions"],
+                cwd=ROOT, env=env, text=True, capture_output=True,
+            )
+            self.assertEqual(forced.returncode, 0, forced.stderr + forced.stdout)
+            self.assertEqual(len(tuple(targets[0].parent.glob("CLAUDE.md.impstack-backup.*"))), 1)
+            for index in range(6):
+                targets[0].write_text(f"operator replacement {index}\n")
+                forced = subprocess.run(
+                    [str(ROOT / "install.sh"), "--force", "instructions"],
+                    cwd=ROOT, env=env, text=True, capture_output=True,
+                )
+                self.assertEqual(forced.returncode, 0, forced.stderr + forced.stdout)
+            self.assertEqual(len(tuple(targets[0].parent.glob("CLAUDE.md.impstack-backup.*"))), 5)
+
+    def test_instruction_replacement_always_backs_up_recorded_content(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = pathlib.Path(temp)
+            home, env = self.create_valid_install_fixture(root)
+            command = [str(ROOT / "install.sh"), "instructions"]
+            first = subprocess.run(
+                command, cwd=ROOT, env=env, text=True, capture_output=True,
+            )
+            self.assertEqual(first.returncode, 0, first.stderr + first.stdout)
+            target = home / "AGENTS.md"
+            operator_content = b"operator content that impstack did not write\n"
+            target.write_bytes(operator_content)
+            state_path = home / ".local/state/impstack/instructions.json"
+            state = json.loads(state_path.read_text())
+            state["targets"]["AGENTS.md"] = hashlib.sha256(operator_content).hexdigest()
+            state_path.write_text(json.dumps(state))
+
+            result = subprocess.run(
+                command, cwd=ROOT, env=env, text=True, capture_output=True,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+            self.assertNotEqual(target.read_bytes(), operator_content)
+            backups = tuple(home.glob("AGENTS.md.impstack-backup.*"))
+            self.assertEqual(len(backups), 1)
+            self.assertEqual(backups[0].read_bytes(), operator_content)
+
+        with self.subTest(case="backup failure blocks replacement"), tempfile.TemporaryDirectory() as temp:
+            root = pathlib.Path(temp)
+            home, env = self.create_valid_install_fixture(root)
+            command = [str(ROOT / "install.sh"), "instructions"]
+            first = subprocess.run(
+                command, cwd=ROOT, env=env, text=True, capture_output=True,
+            )
+            self.assertEqual(first.returncode, 0, first.stderr + first.stdout)
+            target = home / "AGENTS.md"
+            operator_content = b"operator content with a matching recorded digest\n"
+            target.write_bytes(operator_content)
+            state_path = home / ".local/state/impstack/instructions.json"
+            state = json.loads(state_path.read_text())
+            state["targets"]["AGENTS.md"] = hashlib.sha256(operator_content).hexdigest()
+            state_path.write_text(json.dumps(state))
+            broken_backup = home / "AGENTS.md.impstack-backup.broken"
+            broken_backup.symlink_to(home / "missing-backup-target")
+
+            result = subprocess.run(
+                command, cwd=ROOT, env=env, text=True, capture_output=True,
+            )
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertEqual(target.read_bytes(), operator_content)
+            self.assertNotIn("Traceback", result.stderr)
+
+    def test_instruction_state_read_failure_degrades_to_unknown_provenance(self) -> None:
+        corrupt_states = (
+            ("malformed JSON", b"{broken\n"),
+            ("null digest", b'{"version": 1, "targets": {"AGENTS.md": null}}\n'),
+        )
+        for label, content in corrupt_states:
+            with (
+                self.subTest(case=f"identical target with {label}"),
+                tempfile.TemporaryDirectory() as temp,
+            ):
+                root = pathlib.Path(temp)
+                home, env = self.create_valid_install_fixture(root)
+                command = [str(ROOT / "install.sh"), "instructions"]
+                first = subprocess.run(
+                    command, cwd=ROOT, env=env, text=True, capture_output=True,
+                )
+                self.assertEqual(first.returncode, 0, first.stderr + first.stdout)
+                targets = (home / ".claude/CLAUDE.md", home / "AGENTS.md")
+                before = [
+                    (path.read_bytes(), path.stat().st_ino, path.stat().st_mtime_ns)
+                    for path in targets
+                ]
+                state_path = home / ".local/state/impstack/instructions.json"
+                state_path.write_bytes(content)
+
+                result = subprocess.run(
+                    command, cwd=ROOT, env=env, text=True, capture_output=True,
+                )
+
+                self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+                self.assertEqual(
+                    before,
+                    [
+                        (path.read_bytes(), path.stat().st_ino, path.stat().st_mtime_ns)
+                        for path in targets
+                    ],
+                )
+                self.assertNotIn(str(state_path), result.stderr)
+                self.assertFalse(any(home.rglob("*.impstack-backup.*")))
+                repaired = json.loads(state_path.read_text())["targets"]
+                for path in targets:
+                    key = str(path.relative_to(home))
+                    self.assertEqual(repaired[key], hashlib.sha256(path.read_bytes()).hexdigest())
+
+        with (
+            self.subTest(case="identical target with stale state"),
+            tempfile.TemporaryDirectory() as temp,
+        ):
+            root = pathlib.Path(temp)
+            home, env = self.create_valid_install_fixture(root)
+            command = [str(ROOT / "install.sh"), "instructions"]
+            first = subprocess.run(
+                command, cwd=ROOT, env=env, text=True, capture_output=True,
+            )
+            self.assertEqual(first.returncode, 0, first.stderr + first.stdout)
+            targets = (home / ".claude/CLAUDE.md", home / "AGENTS.md")
+            before = [
+                (path.read_bytes(), path.stat().st_ino, path.stat().st_mtime_ns)
+                for path in targets
+            ]
+            state_path = home / ".local/state/impstack/instructions.json"
+            state = json.loads(state_path.read_text())
+            state["targets"] = {key: "0" * 64 for key in state["targets"]}
+            state_path.write_text(json.dumps(state))
+
+            result = subprocess.run(
+                command, cwd=ROOT, env=env, text=True, capture_output=True,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+            self.assertEqual(
+                before,
+                [
+                    (path.read_bytes(), path.stat().st_ino, path.stat().st_mtime_ns)
+                    for path in targets
+                ],
+            )
+            self.assertFalse(any(home.rglob("*.impstack-backup.*")))
+            repaired = json.loads(state_path.read_text())["targets"]
+            for path in targets:
+                key = str(path.relative_to(home))
+                self.assertEqual(repaired[key], hashlib.sha256(path.read_bytes()).hexdigest())
+
+        with (
+            self.subTest(case="differing target with malformed JSON"),
+            tempfile.TemporaryDirectory() as temp,
+        ):
+            root = pathlib.Path(temp)
+            home, env = self.create_valid_install_fixture(root)
+            command = [str(ROOT / "install.sh"), "instructions"]
+            first = subprocess.run(
+                command, cwd=ROOT, env=env, text=True, capture_output=True,
+            )
+            self.assertEqual(first.returncode, 0, first.stderr + first.stdout)
+            target = home / "AGENTS.md"
+            operator_content = b"operator content with unknown provenance\n"
+            target.write_bytes(operator_content)
+            state_path = home / ".local/state/impstack/instructions.json"
+            state_path.write_bytes(b"{broken\n")
+
+            result = subprocess.run(
+                command, cwd=ROOT, env=env, text=True, capture_output=True,
+            )
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertEqual(target.read_bytes(), operator_content)
+            backups = tuple(home.glob("AGENTS.md.impstack-backup.*"))
+            self.assertEqual(len(backups), 1)
+            self.assertEqual(backups[0].read_bytes(), operator_content)
+            self.assertIn(str(state_path), result.stderr)
+            self.assertNotIn("Traceback", result.stderr)
+
+    def test_instruction_state_write_failure_has_a_clean_error(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = pathlib.Path(temp)
+            home, env = self.create_valid_install_fixture(root)
+            state_root = root / "unwritable-state"
+            state_dir = state_root / "impstack"
+            state_dir.mkdir(parents=True)
+            state_dir.chmod(0o500)
+            env["XDG_STATE_HOME"] = str(state_root)
+
+            result = subprocess.run(
+                [str(ROOT / "install.sh"), "instructions"],
+                cwd=ROOT, env=env, text=True, capture_output=True, check=False,
+            )
+            state_dir.chmod(0o700)
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertNotIn("Traceback", result.stderr)
+            self.assertEqual(len(result.stderr.splitlines()), 1, result.stderr)
+            self.assertIn(str(state_root / "impstack/instructions.json"), result.stderr)
+
+    def test_instruction_pair_is_written_before_the_state_commit(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = pathlib.Path(temp)
+            home, env = self.create_valid_install_fixture(root)
+            state_root = root / "unwritable-state"
+            state_dir = state_root / "impstack"
+            state_dir.mkdir(parents=True)
+            state_dir.chmod(0o500)
+            env["XDG_STATE_HOME"] = str(state_root)
+
+            result = subprocess.run(
+                [str(ROOT / "install.sh"), "instructions"],
+                cwd=ROOT, env=env, text=True, capture_output=True, check=False,
+            )
+            state_dir.chmod(0o700)
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertTrue((home / ".claude/CLAUDE.md").is_file())
+            self.assertTrue((home / "AGENTS.md").is_file())
+            self.assertFalse((state_root / "impstack/instructions.json").exists())
+
+    def test_full_install_continues_after_instruction_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = pathlib.Path(temp)
+            home, env = self.create_valid_install_fixture(root)
+            target = home / "AGENTS.md"
+            target.write_text("operator instructions\n")
+
+            result = subprocess.run(
+                [str(ROOT / "install.sh")],
+                cwd=ROOT, env=env, text=True, capture_output=True, check=False,
+            )
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("blocked instruction file", result.stderr)
+            later_banners = (
+                "== mcp servers (keys from env; nothing secret is stored in this repo)",
+                "== Codex settings",
+                "== validating third-party skill catalog",
+            )
+            for banner in later_banners:
+                self.assertIn(banner, result.stdout)
+                self.assertGreater(
+                    result.stdout.index(banner),
+                    result.stdout.index("== instruction files"),
+                )
+            self.assertEqual((home / ".codex/AGENTS.md").resolve(), target.resolve())
+            self.assertEqual(
+                (home / ".codex/pstack-models.md").resolve(),
+                (ROOT / "configs/pstack-codex.md").resolve(),
+            )
 
     @staticmethod
     def normalize_home(value: str | bytes, home: pathlib.Path) -> str | bytes:
@@ -508,9 +1145,9 @@ class SkillMetadataTest(unittest.TestCase):
 
         text = wrapper.read_text()
 
-        self.assertIn('"$NPX" skills update -g', text)
+        self.assertIn('"$NPX" --yes skills update -g', text)
         self.assertLess(text.index('skill_metadata.py" apply'), text.index('skill_metadata.py" check'))
-        self.assertLess(text.index('"$NPX" skills update -g'), text.index("restore_metadata )"))
+        self.assertLess(text.index('"$NPX" --yes skills update -g'), text.index("restore_metadata )"))
 
     def test_update_wrapper_restores_unlocks_after_fake_npx_update(self) -> None:
         tempdir = tempfile.TemporaryDirectory()
@@ -530,8 +1167,9 @@ class SkillMetadataTest(unittest.TestCase):
                 #!/usr/bin/env bash
                 set -euo pipefail
                 printf '%s\n' "$*" > "$HOME/npx.args"
-                [ "$1" = "skills" ]
-                [ "$2" = "update" ]
+                [ "$1" = "--yes" ]
+                [ "$2" = "skills" ]
+                [ "$3" = "update" ]
                 mkdir -p "$HOME/.agents/skills/wayfinder"
                 printf '%s\n' \\
                   '---' \\
@@ -561,7 +1199,7 @@ class SkillMetadataTest(unittest.TestCase):
         )
 
         self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
-        self.assertEqual((home / "npx.args").read_text(), "skills update -g\n")
+        self.assertEqual((home / "npx.args").read_text(), "--yes skills update -g\n")
         wayfinder = (shared / "wayfinder" / "SKILL.md").read_text()
         self.assertNotIn("disable-model-invocation: true", wayfinder)
         self.assertIn("name: wayfinder", wayfinder)
@@ -589,7 +1227,7 @@ class SkillMetadataTest(unittest.TestCase):
         )
 
         self.assertEqual(result.returncode, 23, result.stderr + result.stdout)
-        self.assertEqual((home / "npx.args").read_text(), "skills update -g\n")
+        self.assertEqual((home / "npx.args").read_text(), "--yes skills update -g\n")
         ponytail_review = (shared / "ponytail-review" / "SKILL.md").read_text()
         self.assertIn("Use only when the user explicitly names", ponytail_review)
         wayfinder = (shared / "wayfinder" / "SKILL.md").read_text()
@@ -616,7 +1254,7 @@ class SkillMetadataTest(unittest.TestCase):
         env["IMPSTACK_DIR"] = str(ROOT)
 
         result = subprocess.run(
-            [str(ROOT / "bootstrap.sh")],
+            [str(ROOT / "bootstrap.sh"), "--no-harness"],
             cwd=ROOT,
             env=env,
             text=True,
@@ -649,7 +1287,7 @@ class SkillMetadataTest(unittest.TestCase):
         env["IMPSTACK_DIR"] = str(checkout)
 
         result = subprocess.run(
-            [str(ROOT / "bootstrap.sh")],
+            [str(ROOT / "bootstrap.sh"), "--no-harness"],
             cwd=ROOT,
             env=env,
             text=True,
@@ -693,7 +1331,7 @@ class SkillMetadataTest(unittest.TestCase):
         env["IMPSTACK_DIR"] = str(ROOT)
 
         result = subprocess.run(
-            [str(ROOT / "bootstrap.sh")],
+            [str(ROOT / "bootstrap.sh"), "--no-harness"],
             cwd=ROOT,
             env=env,
             text=True,
@@ -805,7 +1443,7 @@ class SkillMetadataTest(unittest.TestCase):
         env = self.base_runtime_env(home, fakebin, pstack=pstack)
 
         result = subprocess.run(
-            [str(ROOT / "install.sh")],
+            [str(ROOT / "install.sh"), "--no-harness"],
             cwd=ROOT,
             env=env,
             text=True,
@@ -838,7 +1476,7 @@ class SkillMetadataTest(unittest.TestCase):
         env = self.base_runtime_env(home, fakebin, pstack=pstack)
 
         result = subprocess.run(
-            [str(ROOT / "install.sh")],
+            [str(ROOT / "install.sh"), "--no-harness"],
             cwd=ROOT,
             env=env,
             text=True,
@@ -863,7 +1501,7 @@ class SkillMetadataTest(unittest.TestCase):
         env = self.base_runtime_env(home, fakebin)
 
         result = subprocess.run(
-            [str(ROOT / "install.sh")],
+            [str(ROOT / "install.sh"), "--no-harness"],
             cwd=ROOT,
             env=env,
             text=True,
@@ -925,7 +1563,7 @@ class SkillMetadataTest(unittest.TestCase):
         )
         self.assertNotIn("context7", codex_args)
         self.assertIn(
-            "skip context7 for Codex: header CONTEXT7_API_KEY is not bearer auth",
+            "unsupported context7 for Codex: header CONTEXT7_API_KEY is not bearer auth",
             result.stdout,
         )
 
@@ -974,17 +1612,28 @@ class SkillMetadataTest(unittest.TestCase):
             self.assertEqual(original_result.returncode, 0, original_result.stderr)
             self.assertEqual(new_result.returncode, 0, new_result.stderr)
             self.assertEqual(
-                b"== preflight\n"
-                + self.normalize_home(original_result.stdout, original_home),
-                self.normalize_home(new_result.stdout, new_home),
-            )
-            self.assertEqual(
                 self.normalize_home(original_result.stderr, original_home),
                 self.normalize_home(new_result.stderr, new_home),
             )
+            original_snapshot = self.snapshot_home(original_home)
+            new_snapshot = self.snapshot_home(new_home)
+            managed = {
+                ".claude/CLAUDE.md",
+                "AGENTS.md",
+                ".local/state",
+                ".local/state/impstack",
+                ".local/state/impstack/instructions.json",
+            }
             self.assertEqual(
-                self.snapshot_home(original_home), self.snapshot_home(new_home)
+                {key: value for key, value in original_snapshot.items() if key not in managed},
+                {key: value for key, value in new_snapshot.items() if key not in managed},
             )
+            original_claude = original_snapshot[".claude/CLAUDE.md"][1]
+            new_claude = new_snapshot[".claude/CLAUDE.md"][1]
+            self.assertEqual(new_claude.split(b"\n", 1)[1], original_claude)
+            original_codex = original_snapshot["AGENTS.md"][1]
+            new_codex = new_snapshot["AGENTS.md"][1]
+            self.assertEqual(new_codex.split(b"\n", 1)[1], original_codex.split(b"\n\n", 1)[1])
 
     def test_install_lists_exact_step_names(self) -> None:
         result = subprocess.run(

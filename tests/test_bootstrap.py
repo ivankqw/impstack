@@ -27,6 +27,12 @@ class BootstrapMigrationTests(unittest.TestCase):
         fake_git.write_text(
             "#!/usr/bin/env bash\n"
             'printf \'%s\\n\' "$*" >> "$HOME/git.args"\n'
+            'if [ "${FAKE_PSTACK_FETCH_FAILURE:-}" != "" ] && [ "${3:-}" = fetch ]; then exit 1; fi\n'
+            'if [ "${3:-}" = ls-remote ]; then\n'
+            '  if [ "${FAKE_PSTACK_FETCH_FAILURE:-}" = transport ]; then exit 1; fi\n'
+            '  if [ "${FAKE_PSTACK_FETCH_FAILURE:-}" = fetch-error ]; then printf "%s\\trefs/heads/main\\n" "$5"; fi\n'
+            '  exit 0\n'
+            'fi\n'
             "exit 0\n"
         )
         fake_git.chmod(0o755)
@@ -39,6 +45,8 @@ class BootstrapMigrationTests(unittest.TestCase):
         legacy.mkdir()
         (legacy / ".git").mkdir()
         (legacy / "pstack-revision.txt").write_text("0" * 40 + "\n")
+        (legacy / "bin").mkdir()
+        (legacy / "bin" / "skills-sync").symlink_to(ROOT / "bin" / "skills-sync")
         installer = legacy / "install.sh"
         installer.write_text(
             "#!/usr/bin/env bash\n"
@@ -99,6 +107,8 @@ class BootstrapMigrationTests(unittest.TestCase):
         new.mkdir()
         (new / ".git").mkdir()
         (new / "pstack-revision.txt").write_text("0" * 40 + "\n")
+        (new / "bin").mkdir()
+        (new / "bin" / "skills-sync").symlink_to(ROOT / "bin" / "skills-sync")
         installer = new / "install.sh"
         installer.write_text("#!/usr/bin/env bash\nexit 0\n")
         installer.chmod(0o755)
@@ -140,6 +150,8 @@ class BootstrapMigrationTests(unittest.TestCase):
         custom.mkdir()
         (custom / ".git").mkdir()
         (custom / "pstack-revision.txt").write_text("0" * 40 + "\n")
+        (custom / "bin").mkdir()
+        (custom / "bin" / "skills-sync").symlink_to(ROOT / "bin" / "skills-sync")
         installer = custom / "install.sh"
         installer.write_text("#!/usr/bin/env bash\nexit 0\n")
         installer.chmod(0o755)
@@ -171,3 +183,39 @@ class BootstrapMigrationTests(unittest.TestCase):
         self.assertIn(link_line, result.stdout)
         self.assertTrue(custom.is_dir())
         self.assertFalse(custom.is_symlink())
+
+    def test_new_pstack_checkout_fetches_only_the_pinned_revision(self) -> None:
+        self.create_legacy_checkout()
+
+        result = self.run_bootstrap()
+
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        commands = (self.home / "git.args").read_text().splitlines()
+        self.assertTrue(any(command.startswith("init ") for command in commands), commands)
+        self.assertTrue(
+            any(" fetch --depth 1 origin " + "0" * 40 in command for command in commands),
+            commands,
+        )
+        self.assertFalse(any(command.startswith("clone ") and "pstack" in command for command in commands))
+
+    def test_pstack_fetch_failure_does_not_claim_an_unproven_cause(self) -> None:
+        self.create_legacy_checkout()
+        env = os.environ.copy()
+        env.update(
+            HOME=str(self.home),
+            PATH=f"{self.bin}:{os.defpath}",
+            PSTACK_DIR=str(self.home / "pstack"),
+            PRIVATE_CONFIG=str(self.home / "private"),
+            FAKE_PSTACK_FETCH_FAILURE="missing-ref",
+        )
+
+        result = subprocess.run(
+            ["bash", str(SCRIPT)], cwd=ROOT, env=env,
+            text=True, capture_output=True, check=False,
+        )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("could not fetch pinned pstack revision", result.stderr)
+        self.assertIn("may be missing", result.stderr)
+        self.assertIn("may restrict direct revision fetches", result.stderr)
+        self.assertIn(str(self.home / "impstack/pstack-revision.txt"), result.stderr)

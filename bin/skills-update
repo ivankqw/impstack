@@ -12,7 +12,12 @@ while [ -L "$SCRIPT" ]; do
   esac
 done
 AC="$(cd "$(dirname "$SCRIPT")/.." && pwd)"
-SHARED_SKILLS="${SHARED_SKILLS:-$HOME/.agents/skills}"
+SHARED_SKILLS="$("$AC/bin/skills-sync" resolve-shared)"
+SKILLS_LOCK_FILE="$("$AC/bin/skills-sync" resolve-lock)"
+export SHARED_SKILLS SKILLS_LOCK_FILE
+"$AC/bin/skills-sync" prepare-state
+PATH="$("$AC/bin/skills-sync" runtime-path)"
+export PATH
 mkdir -p "$SHARED_SKILLS"
 chmod 700 "$SHARED_SKILLS"
 
@@ -41,7 +46,7 @@ fi
 npx_rc=0
 if [ "$no_update" = false ] && [ "$restore_only" = false ]; then
   set +e
-  ( cd "$HOME" && "$NPX" skills update -g )
+  ( cd "$HOME" && "$NPX" --yes skills update -g )
   npx_rc=$?
   set -e
 fi
