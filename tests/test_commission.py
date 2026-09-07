@@ -420,6 +420,24 @@ class CommissionTests(unittest.TestCase):
         ):
             self.assertEqual(report[assertion_id]["status"], "fail")
 
+    def test_opencode_absence_blocks_declare_positive_listing_signal(self) -> None:
+        contract = json.loads(CONTRACT.read_text())
+        assertions = (
+            item
+            for item in contract["assertions"]
+            if item["id"].endswith(".opencode")
+            and "absent_registration" in item
+        )
+
+        for assertion in assertions:
+            absent = assertion["absent_registration"]
+            self.assertIs(
+                absent.get("requires_stdout_without_expected"),
+                True,
+                assertion["id"],
+            )
+            self.assertNotIn("requires_missing_stdout", absent, assertion["id"])
+
     def test_generic_codex_failure_is_not_treated_as_missing_context7(self) -> None:
         self.write_executable(self.fakebin / "codex", "exit 1\n")
 
