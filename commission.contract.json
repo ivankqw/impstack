@@ -177,7 +177,7 @@
     },
     {
       "id": "harness.claude.canary",
-      "kind": "command",
+      "kind": "canary",
       "working_directory": "outside-project",
       "applicability": [
         {
@@ -193,13 +193,14 @@
       ],
       "expectation": {
         "exit_code": 0,
-        "stdout_contains": "LOADED"
+        "stdout_equals": "LOADED"
       },
       "remediation": {
         "kind": "command",
         "text": "Run `./install.sh instructions`. Start a new Claude Code session.",
         "statuses": [
-          "fail"
+          "fail",
+          "indeterminate"
         ]
       }
     },
@@ -233,7 +234,7 @@
     },
     {
       "id": "harness.codex.canary",
-      "kind": "command",
+      "kind": "canary",
       "working_directory": "outside-project",
       "applicability": [
         {
@@ -250,13 +251,14 @@
       ],
       "expectation": {
         "exit_code": 0,
-        "stdout_contains": "LOADED"
+        "stdout_equals": "LOADED"
       },
       "remediation": {
         "kind": "command",
         "text": "Run `./install.sh instructions`. Start a new Codex session.",
         "statuses": [
-          "fail"
+          "fail",
+          "indeterminate"
         ]
       }
     },
@@ -290,7 +292,7 @@
     },
     {
       "id": "harness.opencode.canary",
-      "kind": "command",
+      "kind": "canary",
       "working_directory": "outside-project",
       "applicability": [
         {
@@ -306,13 +308,14 @@
       ],
       "expectation": {
         "exit_code": 0,
-        "stdout_contains": "LOADED"
+        "stdout_equals": "LOADED"
       },
       "remediation": {
         "kind": "command",
         "text": "Run `./install.sh instructions`. Start a new OpenCode session.",
         "statuses": [
-          "fail"
+          "fail",
+          "indeterminate"
         ]
       }
     },

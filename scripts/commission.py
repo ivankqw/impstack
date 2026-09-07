@@ -26,6 +26,7 @@ except ModuleNotFoundError:
 class Status(enum.Enum):
     PASS = "pass"
     FAIL = "fail"
+    INDETERMINATE = "indeterminate"
     NOT_APPLICABLE = "not-applicable"
 
 
@@ -50,6 +51,7 @@ class Assertion:
     command: tuple[str, ...]
     exit_code: int
     stdout_contains: str | None
+    stdout_equals: str | None
     remediation_kind: str
     remediation_text: str
     remediation_stage_id: str | None
@@ -86,7 +88,10 @@ class Report:
 
     @property
     def failed(self) -> bool:
-        return any(result.status is Status.FAIL for result in self.results)
+        return any(
+            result.status in {Status.FAIL, Status.INDETERMINATE}
+            for result in self.results
+        )
 
 
 @dataclasses.dataclass(frozen=True)
@@ -192,7 +197,7 @@ def load_contract(path: pathlib.Path) -> tuple[Assertion, ...]:
             isinstance(assertion_id, str)
             and assertion_id
             and assertion_id not in seen
-            and item.get("kind") in {"command", "shared-path"}
+            and item.get("kind") in {"command", "shared-path", "canary"}
             and isinstance(command, list)
             and command
             and all(isinstance(part, str) and part for part in command)
@@ -203,6 +208,14 @@ def load_contract(path: pathlib.Path) -> tuple[Assertion, ...]:
             and (
                 expectation.get("stdout_contains") is None
                 or isinstance(expectation.get("stdout_contains"), str)
+            )
+            and (
+                expectation.get("stdout_equals") is None
+                or isinstance(expectation.get("stdout_equals"), str)
+            )
+            and not (
+                expectation.get("stdout_contains") is not None
+                and expectation.get("stdout_equals") is not None
             )
             and remediation.get("kind") in {"command", "wizard"}
         )
@@ -260,6 +273,7 @@ def load_contract(path: pathlib.Path) -> tuple[Assertion, ...]:
                 command=tuple(command),
                 exit_code=int(expectation["exit_code"]),
                 stdout_contains=expectation.get("stdout_contains"),
+                stdout_equals=expectation.get("stdout_equals"),
                 remediation_kind=str(remediation["kind"]),
                 remediation_text=remediation_text,
                 remediation_stage_id=(
@@ -364,10 +378,11 @@ def evaluate(assertions: Sequence[Assertion], context: Context) -> Report:
             continue
         evidence = _run(assertion, context)
         matches_exit = evidence.exit_code == assertion.exit_code
-        matches_stdout = (
-            assertion.stdout_contains is None
-            or assertion.stdout_contains in evidence.stdout
+        matches_stdout = assertion.stdout_contains is None or (
+            assertion.stdout_contains in evidence.stdout
         )
+        if assertion.stdout_equals is not None:
+            matches_stdout = evidence.stdout.strip() == assertion.stdout_equals
         if assertion.kind == "shared-path" and matches_exit:
             expected = pathlib.Path(
                 context.environment.get("SHARED_SKILLS", context.home / ".agents" / "skills")
@@ -382,6 +397,13 @@ def evaluate(assertions: Sequence[Assertion], context: Context) -> Report:
                 source.is_file() and resolver_call in source.read_text() for source in sources
             )
         status = Status.PASS if matches_exit and matches_stdout else Status.FAIL
+        if (
+            assertion.kind == "canary"
+            and matches_exit
+            and not matches_stdout
+            and evidence.stdout.strip() != "MISSING"
+        ):
+            status = Status.INDETERMINATE
         absent_registration = (
             status is Status.FAIL
             and assertion.absent_registration_reason is not None
@@ -401,6 +423,8 @@ def evaluate(assertions: Sequence[Assertion], context: Context) -> Report:
             )
         if status is Status.PASS:
             message = "expectation met"
+        elif status is Status.INDETERMINATE:
+            message = "canary response was indeterminate"
         elif status is Status.NOT_APPLICABLE:
             message = assertion.absent_registration_reason or "not applicable"
         elif not matches_exit:
@@ -408,7 +432,8 @@ def evaluate(assertions: Sequence[Assertion], context: Context) -> Report:
         elif assertion.kind == "shared-path":
             message = "shared path or resolver callers do not match"
         else:
-            message = f"stdout does not contain {assertion.stdout_contains!r}"
+            expected_output = assertion.stdout_equals or assertion.stdout_contains
+            message = f"stdout does not match {expected_output!r}"
         results.append(
             AssertionResult(
                 assertion.assertion_id,
@@ -476,7 +501,7 @@ def _version(command: str, context: Context) -> str:
         return "not installed"
     assertion = Assertion(
         "inventory", "command", (), WorkingDirectory.REPO, (command, "--version"),
-        0, None, "command", "none", None, (Status.FAIL,), None, (), False,
+        0, None, None, "command", "none", None, (Status.FAIL,), None, (), False,
     )
     evidence = _run(assertion, context)
     return _selected_version(evidence.stdout or evidence.stderr)
