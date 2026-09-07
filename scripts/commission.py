@@ -794,13 +794,11 @@ def render_wizard(template: str, report: Report) -> str:
                 [
                     'ENV_FILE="$HOME/.config/impstack/env"',
                     'mkdir -p "$(dirname "$ENV_FILE")"',
-                    'say "Paste the Executor MCP URL. Input stays hidden."',
+                    'open_url "https://executor.sh"',
+                    'say "Sign in, then copy the tenant MCP URL. Input stays hidden."',
                     'ask_secret EXECUTOR_MCP_URL "Executor MCP URL:"',
                     'write_env EXECUTOR_MCP_URL "$EXECUTOR_MCP_URL"',
                     'say "To use the saved value, source $ENV_FILE, then run ./install.sh mcp."',
-                    'open_url "$EXECUTOR_MCP_URL" >/dev/null',
-                    'say "After the page opens, complete the browser sign-in and return here."',
-                    'pause "Press Enter after you complete the browser sign-in."',
                 ]
             )
         elif stage_id == "context7-token":
