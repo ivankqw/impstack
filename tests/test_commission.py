@@ -470,6 +470,38 @@ class CommissionTests(unittest.TestCase):
                     r"^[a-z0-9]+(?:-[a-z0-9]+)*$",
                 )
 
+    def test_contract_rejects_missing_positive_signals(self) -> None:
+        contract = json.loads(CONTRACT.read_text())
+        canary = next(
+            item for item in contract["assertions"]
+            if item["id"] == "harness.codex.canary"
+        )
+        canary["expectation"].pop("stdout_equals")
+        canary_path = self.sandbox / "canary.contract.json"
+        canary_path.write_text(json.dumps(contract))
+
+        canary_result = self.run_commission(
+            "check", "--format", "text", "--contract", str(canary_path)
+        )
+
+        contract = json.loads(CONTRACT.read_text())
+        context7 = next(
+            item for item in contract["assertions"]
+            if item["id"] == "mcp.context7.codex"
+        )
+        context7["absent_registration"]["stderr_contains"] = ""
+        context7_path = self.sandbox / "context7.contract.json"
+        context7_path.write_text(json.dumps(contract))
+
+        context7_result = self.run_commission(
+            "check", "--format", "text", "--contract", str(context7_path)
+        )
+
+        self.assertEqual(canary_result.returncode, 2)
+        self.assertIn("invalid assertion", canary_result.stderr)
+        self.assertEqual(context7_result.returncode, 2)
+        self.assertIn("invalid absent registration", context7_result.stderr)
+
     def test_probe_writes_complete_record_and_manual_only_wizard(self) -> None:
         record = self.sandbox / "machine-record" / "SKILL.md"
         wizard = self.sandbox / "commission-wizard.sh"
