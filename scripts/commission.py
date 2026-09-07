@@ -222,7 +222,10 @@ def load_contract(path: pathlib.Path) -> tuple[Assertion, ...]:
             and isinstance(expectation.get("exit_code"), int)
             and (
                 expectation.get("stdout_contains") is None
-                or isinstance(expectation.get("stdout_contains"), str)
+                or (
+                    isinstance(expectation.get("stdout_contains"), str)
+                    and bool(expectation.get("stdout_contains"))
+                )
             )
             and (
                 expectation.get("stdout_equals") is None
