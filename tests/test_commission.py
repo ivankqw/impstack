@@ -219,6 +219,13 @@ class CommissionTests(unittest.TestCase):
         self.assertTrue(
             all(item.get("working_directory") == "outside-project" for item in canaries)
         )
+        self.assertTrue(
+            all(
+                item.get("working_directory") == "repo"
+                for item in contract["assertions"]
+                if not item["id"].endswith(".canary")
+            )
+        )
 
     def test_rejected_outside_project_root_has_no_side_effect(self) -> None:
         cache = self.home / ".cache" / "impstack" / "commission"
@@ -244,13 +251,6 @@ class CommissionTests(unittest.TestCase):
         self.assertEqual(result.returncode, 2)
         self.assertIn("outside-project directory must be outside", result.stderr)
         self.assertFalse(cache.exists())
-        self.assertTrue(
-            all(
-                item.get("working_directory") == "repo"
-                for item in contract["assertions"]
-                if not item["id"].endswith(".canary")
-            )
-        )
 
     def test_ambiguous_canary_response_is_indeterminate(self) -> None:
         result = self.run_commission(

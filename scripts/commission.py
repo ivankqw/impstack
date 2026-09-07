@@ -967,9 +967,9 @@ def main(argv: Sequence[str]) -> int:
         repo = args.repo.resolve()
         home = args.home.resolve()
         outside_root = home / ".cache" / "impstack" / "commission"
-        outside_root.mkdir(parents=True, exist_ok=True)
         if outside_root == repo or repo in outside_root.parents:
             raise ValueError("outside-project directory must be outside the repository")
+        outside_root.mkdir(parents=True, exist_ok=True)
         with tempfile.TemporaryDirectory(dir=outside_root) as temporary_directory:
             context = _context(args, pathlib.Path(temporary_directory))
             contract_path = args.contract or context.repo / "commission.contract.json"
