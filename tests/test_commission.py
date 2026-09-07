@@ -404,6 +404,22 @@ class CommissionTests(unittest.TestCase):
             self.assertEqual(report[assertion_id]["status"], "not-applicable")
             self.assertIn("install.sh cannot register", report[assertion_id]["message"])
 
+    def test_empty_opencode_listing_is_not_positive_absence_evidence(self) -> None:
+        self.write_executable(self.fakebin / "opencode", "exit 0\n")
+
+        result = self.run_commission("check", "--format", "json")
+
+        report = {
+            item["id"]: item for item in json.loads(result.stdout)["assertions"]
+        }
+        for assertion_id in (
+            "mcp.context7.opencode",
+            "mcp.exa.opencode",
+            "mcp.linear-server.opencode",
+            "mcp.executor.opencode",
+        ):
+            self.assertEqual(report[assertion_id]["status"], "fail")
+
     def test_generic_codex_failure_is_not_treated_as_missing_context7(self) -> None:
         self.write_executable(self.fakebin / "codex", "exit 1\n")
 
