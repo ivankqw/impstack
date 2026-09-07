@@ -605,6 +605,23 @@ class CommissionTests(unittest.TestCase):
         self.assertEqual(empty_reason_result.returncode, 2)
         self.assertIn("invalid absent registration", empty_reason_result.stderr)
 
+    def test_contract_rejects_empty_stdout_contains(self) -> None:
+        contract = json.loads(CONTRACT.read_text())
+        context7 = next(
+            item for item in contract["assertions"]
+            if item["id"] == "mcp.context7.opencode"
+        )
+        context7["expectation"]["stdout_contains"] = ""
+        contract_path = self.sandbox / "empty-stdout-contains.contract.json"
+        contract_path.write_text(json.dumps(contract))
+
+        result = self.run_commission(
+            "check", "--format", "text", "--contract", str(contract_path)
+        )
+
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("invalid assertion", result.stderr)
+
     def test_probe_writes_complete_record_and_manual_only_wizard(self) -> None:
         record = self.sandbox / "machine-record" / "SKILL.md"
         wizard = self.sandbox / "commission-wizard.sh"
