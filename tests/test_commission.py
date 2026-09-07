@@ -640,6 +640,19 @@ class CommissionTests(unittest.TestCase):
         self.assertEqual(result.returncode, 2)
         self.assertIn("invalid assertion", result.stderr)
 
+    def test_contract_rejects_empty_stdout_equals(self) -> None:
+        contract = json.loads(CONTRACT.read_text())
+        contract["assertions"][0]["expectation"]["stdout_equals"] = ""
+        contract_path = self.sandbox / "empty-stdout-equals.contract.json"
+        contract_path.write_text(json.dumps(contract))
+
+        result = self.run_commission(
+            "check", "--format", "text", "--contract", str(contract_path)
+        )
+
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("invalid assertion", result.stderr)
+
     def test_probe_writes_complete_record_and_manual_only_wizard(self) -> None:
         record = self.sandbox / "machine-record" / "SKILL.md"
         wizard = self.sandbox / "commission-wizard.sh"
