@@ -39,9 +39,12 @@ class CommissionTests(unittest.TestCase):
             """\
             id="${COMMISSION_ASSERTION_ID:-}"
             if [[ "${FAIL_ASSERTION:-}" == "$id" ]]; then
-              printf 'forced failure for %s\\n' "$id" >&2
+              printf '%s\\n' "${FAILURE_SENTINEL:-forced failure for $id}" >&2
               exit 41
             fi
+            case ",${FAIL_ASSERTIONS:-}," in
+              *,$id,*) printf '%s\\n' "${FAILURE_SENTINEL:-forced failure for $id}" >&2; exit 41 ;;
+            esac
             """
         )
         self.write_executable(
@@ -174,6 +177,71 @@ class CommissionTests(unittest.TestCase):
         self.assertEqual(statuses["harness.opencode.canary"], "not-applicable")
         self.assertEqual(statuses["mcp.context7.opencode"], "not-applicable")
 
+    def test_missing_harness_does_not_generate_its_login_stage(self) -> None:
+        (self.fakebin / "opencode").unlink()
+        record = self.sandbox / "record.md"
+        wizard = self.sandbox / "wizard.sh"
+
+        result = self.run_commission(
+            "probe", "--record", str(record), "--wizard", str(wizard)
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        self.assertNotIn('stage "OpenCode login"', wizard.read_text())
+
+    def test_missing_executor_url_generates_actionable_connection_stage(self) -> None:
+        environment = self.environment()
+        environment.pop("EXECUTOR_MCP_URL")
+        record = self.sandbox / "record.md"
+        wizard = self.sandbox / "wizard.sh"
+
+        result = self.run_commission(
+            "probe", "--record", str(record), "--wizard", str(wizard), env=environment
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        wizard_text = wizard.read_text()
+        self.assertEqual(wizard_text.count('stage "Executor connection"'), 1)
+        self.assertIn('ask_secret EXECUTOR_MCP_URL', wizard_text)
+        self.assertIn('open_url "$EXECUTOR_MCP_URL"', wizard_text)
+        self.assertIn("complete the browser sign-in", wizard_text)
+
+    def test_context7_failures_generate_one_secret_input_stage(self) -> None:
+        record = self.sandbox / "record.md"
+        wizard = self.sandbox / "wizard.sh"
+        failures = ",".join(
+            (
+                "mcp.context7.claude",
+                "mcp.context7.codex",
+                "mcp.context7.opencode",
+            )
+        )
+
+        result = self.run_commission(
+            "probe",
+            "--record",
+            str(record),
+            "--wizard",
+            str(wizard),
+            env=self.environment(FAIL_ASSERTIONS=failures),
+        )
+
+        self.assertEqual(result.returncode, 1)
+        wizard_text = wizard.read_text()
+        self.assertEqual(wizard_text.count('stage "Context7 token"'), 1)
+        self.assertIn('ask_secret CONTEXT7_API_KEY', wizard_text)
+        self.assertIn('ENV_FILE="$HOME/.config/impstack/env"', wizard_text)
+        self.assertIn("source $ENV_FILE", wizard_text)
+        self.assertIn("./install.sh mcp", wizard_text)
+
+    def test_contract_declares_actionable_statuses(self) -> None:
+        contract = json.loads(CONTRACT.read_text())
+
+        for assertion in contract["assertions"]:
+            statuses = assertion["remediation"].get("statuses")
+            self.assertIsInstance(statuses, list, assertion["id"])
+            self.assertTrue(statuses, assertion["id"])
+
     def test_probe_writes_complete_record_and_manual_only_wizard(self) -> None:
         record = self.sandbox / "machine-record" / "SKILL.md"
         wizard = self.sandbox / "commission-wizard.sh"
@@ -218,6 +286,47 @@ class CommissionTests(unittest.TestCase):
 
         combined = result.stdout + result.stderr + record.read_text()
         self.assertNotIn(secret_url, combined)
+
+    def test_arbitrary_command_output_is_absent_from_all_reports(self) -> None:
+        sentinel = "s3nt1nel-private-material-947"
+        environment = self.environment(
+            FAIL_ASSERTION="install.list", FAILURE_SENTINEL=sentinel
+        )
+        text_result = self.run_commission("check", "--format", "text", env=environment)
+        json_result = self.run_commission("check", "--format", "json", env=environment)
+        record = self.sandbox / "record.md"
+        probe_result = self.run_commission(
+            "probe", "--record", str(record), env=environment
+        )
+
+        self.assertNotIn(sentinel, text_result.stdout + text_result.stderr)
+        self.assertNotIn(sentinel, json_result.stdout + json_result.stderr)
+        self.assertNotIn(sentinel, probe_result.stdout + probe_result.stderr)
+        self.assertNotIn(sentinel, record.read_text())
+        assertion = next(
+            item
+            for item in json.loads(json_result.stdout)["assertions"]
+            if item["id"] == "install.list"
+        )
+        self.assertEqual(
+            set(assertion),
+            {"id", "status", "message", "command", "exit_code", "remediation"},
+        )
+
+    def test_probe_is_byte_idempotent(self) -> None:
+        record = self.sandbox / "record.md"
+        wizard = self.sandbox / "wizard.sh"
+        arguments = ("probe", "--record", str(record), "--wizard", str(wizard))
+
+        first = self.run_commission(*arguments)
+        first_record = record.read_bytes()
+        first_wizard = wizard.read_bytes()
+        second = self.run_commission(*arguments)
+
+        self.assertEqual(first.returncode, 0, first.stderr + first.stdout)
+        self.assertEqual(second.returncode, 0, second.stderr + second.stdout)
+        self.assertEqual(record.read_bytes(), first_record)
+        self.assertEqual(wizard.read_bytes(), first_wizard)
 
 
 if __name__ == "__main__":

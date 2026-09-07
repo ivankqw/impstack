@@ -14,7 +14,10 @@
       },
       "remediation": {
         "kind": "command",
-        "text": "Run `./install.sh preflight` and fix the reported prerequisite."
+        "text": "Run `./install.sh preflight` and fix the reported prerequisite.",
+        "statuses": [
+          "fail"
+        ]
       }
     },
     {
@@ -30,7 +33,10 @@
       },
       "remediation": {
         "kind": "command",
-        "text": "Run `./install.sh --help` and fix the reported installer error."
+        "text": "Run `./install.sh --help` and fix the reported installer error.",
+        "statuses": [
+          "fail"
+        ]
       }
     },
     {
@@ -46,7 +52,10 @@
       },
       "remediation": {
         "kind": "command",
-        "text": "Run `bin/skills-sync check` and fix each catalog error."
+        "text": "Run `bin/skills-sync check` and fix each catalog error.",
+        "statuses": [
+          "fail"
+        ]
       }
     },
     {
@@ -62,7 +71,10 @@
       },
       "remediation": {
         "kind": "command",
-        "text": "Set `SHARED_SKILLS` to the intended directory, then rerun this check."
+        "text": "Set `SHARED_SKILLS` to the intended directory, then rerun this check.",
+        "statuses": [
+          "fail"
+        ]
       }
     },
     {
@@ -78,7 +90,10 @@
       },
       "remediation": {
         "kind": "command",
-        "text": "Install Node.js or configure a supported Node.js manager."
+        "text": "Install Node.js or configure a supported Node.js manager.",
+        "statuses": [
+          "fail"
+        ]
       }
     },
     {
@@ -94,7 +109,10 @@
       },
       "remediation": {
         "kind": "command",
-        "text": "Install npm with npx or configure a supported Node.js manager."
+        "text": "Install npm with npx or configure a supported Node.js manager.",
+        "statuses": [
+          "fail"
+        ]
       }
     },
     {
@@ -116,7 +134,10 @@
       },
       "remediation": {
         "kind": "wizard",
-        "stage": "Claude login"
+        "stage": "Claude login",
+        "statuses": [
+          "fail"
+        ]
       }
     },
     {
@@ -139,7 +160,10 @@
       },
       "remediation": {
         "kind": "command",
-        "text": "Run `./install.sh instructions`, then start a new Claude Code session."
+        "text": "Run `./install.sh instructions`, then start a new Claude Code session.",
+        "statuses": [
+          "fail"
+        ]
       }
     },
     {
@@ -161,7 +185,10 @@
       },
       "remediation": {
         "kind": "wizard",
-        "stage": "Codex login"
+        "stage": "Codex login",
+        "statuses": [
+          "fail"
+        ]
       }
     },
     {
@@ -185,7 +212,10 @@
       },
       "remediation": {
         "kind": "command",
-        "text": "Run `./install.sh instructions`, then start a new Codex session."
+        "text": "Run `./install.sh instructions`, then start a new Codex session.",
+        "statuses": [
+          "fail"
+        ]
       }
     },
     {
@@ -207,7 +237,10 @@
       },
       "remediation": {
         "kind": "wizard",
-        "stage": "OpenCode login"
+        "stage": "OpenCode login",
+        "statuses": [
+          "fail"
+        ]
       }
     },
     {
@@ -230,7 +263,10 @@
       },
       "remediation": {
         "kind": "command",
-        "text": "Run `./install.sh instructions`, then start a new OpenCode session."
+        "text": "Run `./install.sh instructions`, then start a new OpenCode session.",
+        "statuses": [
+          "fail"
+        ]
       }
     },
     {
@@ -252,8 +288,11 @@
         "exit_code": 0
       },
       "remediation": {
-        "kind": "command",
-        "text": "Run `./install.sh mcp`, then repeat this check."
+        "kind": "wizard",
+        "stage": "Context7 token",
+        "statuses": [
+          "fail"
+        ]
       }
     },
     {
@@ -276,7 +315,10 @@
       },
       "remediation": {
         "kind": "command",
-        "text": "Run `./install.sh mcp`, then repeat this check."
+        "text": "Run `./install.sh mcp`, then repeat this check.",
+        "statuses": [
+          "fail"
+        ]
       }
     },
     {
@@ -299,7 +341,10 @@
       },
       "remediation": {
         "kind": "command",
-        "text": "Run `./install.sh mcp`, then repeat this check."
+        "text": "Run `./install.sh mcp`, then repeat this check.",
+        "statuses": [
+          "fail"
+        ]
       }
     },
     {
@@ -326,7 +371,11 @@
       },
       "remediation": {
         "kind": "wizard",
-        "stage": "Executor connection"
+        "stage": "Executor connection",
+        "statuses": [
+          "fail",
+          "not-applicable"
+        ]
       }
     },
     {
@@ -349,8 +398,11 @@
         "exit_code": 0
       },
       "remediation": {
-        "kind": "command",
-        "text": "Run `./install.sh mcp`, then repeat this check."
+        "kind": "wizard",
+        "stage": "Context7 token",
+        "statuses": [
+          "fail"
+        ]
       }
     },
     {
@@ -374,7 +426,10 @@
       },
       "remediation": {
         "kind": "command",
-        "text": "Run `./install.sh mcp`, then repeat this check."
+        "text": "Run `./install.sh mcp`, then repeat this check.",
+        "statuses": [
+          "fail"
+        ]
       }
     },
     {
@@ -398,7 +453,10 @@
       },
       "remediation": {
         "kind": "command",
-        "text": "Run `./install.sh mcp`, then repeat this check."
+        "text": "Run `./install.sh mcp`, then repeat this check.",
+        "statuses": [
+          "fail"
+        ]
       }
     },
     {
@@ -426,7 +484,11 @@
       },
       "remediation": {
         "kind": "wizard",
-        "stage": "Executor connection"
+        "stage": "Executor connection",
+        "statuses": [
+          "fail",
+          "not-applicable"
+        ]
       }
     },
     {
@@ -448,8 +510,11 @@
         "stdout_contains": "context7"
       },
       "remediation": {
-        "kind": "command",
-        "text": "Run `./install.sh mcp`, then repeat this check."
+        "kind": "wizard",
+        "stage": "Context7 token",
+        "statuses": [
+          "fail"
+        ]
       }
     },
     {
@@ -472,7 +537,10 @@
       },
       "remediation": {
         "kind": "command",
-        "text": "Run `./install.sh mcp`, then repeat this check."
+        "text": "Run `./install.sh mcp`, then repeat this check.",
+        "statuses": [
+          "fail"
+        ]
       }
     },
     {
@@ -495,7 +563,10 @@
       },
       "remediation": {
         "kind": "command",
-        "text": "Run `./install.sh mcp`, then repeat this check."
+        "text": "Run `./install.sh mcp`, then repeat this check.",
+        "statuses": [
+          "fail"
+        ]
       }
     },
     {
@@ -522,7 +593,11 @@
       },
       "remediation": {
         "kind": "wizard",
-        "stage": "Executor connection"
+        "stage": "Executor connection",
+        "statuses": [
+          "fail",
+          "not-applicable"
+        ]
       }
     },
     {
@@ -538,7 +613,10 @@
       },
       "remediation": {
         "kind": "command",
-        "text": "Fix `install.list`, then repeat the proof lane."
+        "text": "Fix `install.list`, then repeat the proof lane.",
+        "statuses": [
+          "fail"
+        ]
       }
     }
   ]

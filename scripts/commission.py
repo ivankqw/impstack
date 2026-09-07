@@ -33,6 +33,7 @@ class Assertion:
     stdout_contains: str | None
     remediation_kind: str
     remediation_text: str
+    remediation_statuses: tuple[Status, ...]
 
 
 @dataclasses.dataclass(frozen=True)
@@ -51,6 +52,7 @@ class AssertionResult:
     evidence: CommandEvidence
     remediation_kind: str
     remediation_text: str
+    remediation_statuses: tuple[Status, ...]
 
 
 @dataclasses.dataclass(frozen=True)
@@ -108,7 +110,14 @@ def load_contract(path: pathlib.Path) -> tuple[Assertion, ...]:
         if not valid:
             raise ValueError(f"invalid assertion: {assertion_id or index}")
         remediation_text = remediation.get("text", remediation.get("stage"))
-        if not isinstance(remediation_text, str) or not remediation_text:
+        remediation_statuses = remediation.get("statuses")
+        if (
+            not isinstance(remediation_text, str)
+            or not remediation_text
+            or not isinstance(remediation_statuses, list)
+            or not remediation_statuses
+            or not all(status in {item.value for item in Status} for status in remediation_statuses)
+        ):
             raise ValueError(f"invalid remediation: {assertion_id}")
         seen.add(assertion_id)
         assertions.append(
@@ -121,6 +130,7 @@ def load_contract(path: pathlib.Path) -> tuple[Assertion, ...]:
                 stdout_contains=expectation.get("stdout_contains"),
                 remediation_kind=str(remediation["kind"]),
                 remediation_text=remediation_text,
+                remediation_statuses=tuple(Status(status) for status in remediation_statuses),
             )
         )
     return tuple(assertions)
@@ -199,6 +209,7 @@ def evaluate(assertions: Sequence[Assertion], context: Context) -> Report:
                     evidence,
                     assertion.remediation_kind,
                     assertion.remediation_text,
+                    assertion.remediation_statuses,
                 )
             )
             continue
@@ -238,6 +249,7 @@ def evaluate(assertions: Sequence[Assertion], context: Context) -> Report:
                 evidence,
                 assertion.remediation_kind,
                 assertion.remediation_text,
+                assertion.remediation_statuses,
             )
         )
     return Report(tuple(results))
@@ -253,8 +265,6 @@ def report_data(report: Report) -> dict[str, object]:
                 "message": result.message,
                 "command": result.evidence.command,
                 "exit_code": result.evidence.exit_code,
-                "stdout": result.evidence.stdout,
-                "stderr": result.evidence.stderr,
                 "remediation": {
                     "kind": result.remediation_kind,
                     "text": result.remediation_text,
@@ -270,11 +280,8 @@ def render_report(report: Report, output_format: str) -> str:
         return json.dumps(report_data(report), indent=2) + "\n"
     lines = []
     for result in report.results:
-        detail = result.message
-        if result.evidence.stderr:
-            detail += f"; {result.evidence.stderr}"
         lines.append(
-            f"{result.status.value:14} {result.assertion_id}: {detail}; "
+            f"{result.status.value:14} {result.assertion_id}: {result.message}; "
             f"command={result.evidence.command}"
         )
     return "\n".join(lines) + "\n"
@@ -287,7 +294,10 @@ def _result(report: Report, assertion_id: str) -> AssertionResult | None:
 def _version(command: str, context: Context) -> str:
     if shutil.which(command, path=context.environment.get("PATH")) is None:
         return "not installed"
-    assertion = Assertion("inventory", "command", (), (command, "--version"), 0, None, "command", "none")
+    assertion = Assertion(
+        "inventory", "command", (), (command, "--version"), 0, None,
+        "command", "none", (Status.FAIL,),
+    )
     evidence = _run(assertion, context)
     return evidence.stdout or evidence.stderr or f"exit {evidence.exit_code}"
 
@@ -355,9 +365,11 @@ def render_record(report: Report, context: Context, wizard_path: pathlib.Path | 
             f"- `{result.assertion_id}`: `{result.status.value}`. Command: `{result.evidence.command}`. {result.message}"
         )
     lines.extend(["", "## Remediation", ""])
-    failures = [result for result in report.results if result.status is Status.FAIL]
-    if failures:
-        for result in failures:
+    actionable = [
+        result for result in report.results if result.status in result.remediation_statuses
+    ]
+    if actionable:
+        for result in actionable:
             remediation = (
                 f"Run wizard stage `{result.remediation_text}` from `{wizard_path}`."
                 if result.remediation_kind == "wizard" and wizard_path
@@ -376,7 +388,10 @@ def render_wizard(template: str, report: Report) -> str:
     library = template[: template.index(marker)]
     stage_names: list[str] = []
     for result in report.results:
-        if result.remediation_kind != "wizard" or result.status is Status.PASS:
+        if (
+            result.remediation_kind != "wizard"
+            or result.status not in result.remediation_statuses
+        ):
             continue
         if result.remediation_text not in stage_names:
             stage_names.append(result.remediation_text)
@@ -393,12 +408,25 @@ def render_wizard(template: str, report: Report) -> str:
         if stage_name == "Executor connection":
             lines.extend(
                 [
-                    'say "Paste the Executor MCP URL. Input stays hidden."',
-                    'ask_secret EXECUTOR_MCP_URL "Executor MCP URL:"',
                     'ENV_FILE="$HOME/.config/impstack/env"',
                     'mkdir -p "$(dirname "$ENV_FILE")"',
+                    'say "Paste the Executor MCP URL. Input stays hidden."',
+                    'ask_secret EXECUTOR_MCP_URL "Executor MCP URL:"',
                     'write_env EXECUTOR_MCP_URL "$EXECUTOR_MCP_URL"',
-                    'say "Source $ENV_FILE, then run ./install.sh mcp."',
+                    'say "To use the saved value, source $ENV_FILE, then run ./install.sh mcp."',
+                    'open_url "$EXECUTOR_MCP_URL" >/dev/null',
+                    'say "After the page opens, complete the browser sign-in and return here."',
+                    'pause "Press Enter after you complete the browser sign-in."',
+                ]
+            )
+        elif stage_name == "Context7 token":
+            lines.extend(
+                [
+                    'ENV_FILE="$HOME/.config/impstack/env"',
+                    'mkdir -p "$(dirname "$ENV_FILE")"',
+                    'ask_secret CONTEXT7_API_KEY "Context7 API key:"',
+                    'write_env CONTEXT7_API_KEY "$CONTEXT7_API_KEY"',
+                    'say "To use the saved value, source $ENV_FILE, then run ./install.sh mcp."',
                 ]
             )
         else:
