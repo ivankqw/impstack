@@ -533,6 +533,17 @@ class CommissionTests(unittest.TestCase):
         self.assertFalse(record.exists())
         self.assertFalse(wizard.exists())
 
+    def test_wizard_template_accepts_function_keyword_declarations(self) -> None:
+        template = self.home / ".agents" / "skills" / "wizard" / "template.sh"
+        content = template.read_text()
+        for helper in commission_module.WIZARD_HELPERS:
+            content = content.replace(f"{helper}()", f"function {helper}()")
+        template.write_text(content)
+
+        loaded = commission_module._load_wizard_template(template)
+
+        self.assertEqual(loaded, content)
+
     def test_contract_declares_actionable_statuses(self) -> None:
         contract = json.loads(CONTRACT.read_text())
 
