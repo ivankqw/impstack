@@ -419,6 +419,24 @@ class CommissionTests(unittest.TestCase):
         self.assertIn("source $ENV_FILE", wizard_text)
         self.assertIn("./install.sh mcp", wizard_text)
 
+    def test_missing_wizard_template_names_the_dependency_before_writes(self) -> None:
+        template = self.home / ".agents" / "skills" / "wizard" / "template.sh"
+        template.unlink()
+        record = self.sandbox / "record.md"
+        wizard = self.sandbox / "wizard.sh"
+        record.write_text("keep record\n")
+        wizard.write_text("keep wizard\n")
+
+        result = self.run_commission(
+            "probe", "--record", str(record), "--wizard", str(wizard)
+        )
+
+        self.assertEqual(result.returncode, 2)
+        self.assertIn(f"wizard template is missing: {template}", result.stderr)
+        self.assertIn("install the wizard skill", result.stderr)
+        self.assertEqual(record.read_text(), "keep record\n")
+        self.assertEqual(wizard.read_text(), "keep wizard\n")
+
     def test_contract_declares_actionable_statuses(self) -> None:
         contract = json.loads(CONTRACT.read_text())
 
