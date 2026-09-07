@@ -273,6 +273,7 @@ def load_contract(path: pathlib.Path) -> tuple[Assertion, ...]:
             if (
                 absent.get("status") != Status.NOT_APPLICABLE.value
                 or not isinstance(absent.get("reason"), str)
+                or not absent.get("reason")
                 or not isinstance(raw_exit_codes, list)
                 or not raw_exit_codes
                 or not all(isinstance(code, int) for code in raw_exit_codes)
