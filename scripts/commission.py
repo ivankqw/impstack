@@ -17,6 +17,11 @@ import sys
 import tempfile
 from collections.abc import Mapping, Sequence
 
+try:
+    from scripts import managed_instructions as managed
+except ModuleNotFoundError:
+    import managed_instructions as managed
+
 
 class Status(enum.Enum):
     PASS = "pass"
@@ -144,6 +149,14 @@ class MachineRecord:
     connections: tuple[ConnectionRecord, ...]
     contract: tuple[ContractRecord, ...]
     remediations: tuple[RemediationRecord, ...]
+
+
+@dataclasses.dataclass(frozen=True)
+class Artifact:
+    key: str
+    path: pathlib.Path
+    content: bytes
+    mode: int
 
 
 WIZARD_STAGES = {
@@ -771,6 +784,42 @@ def render_wizard(template: str, report: Report) -> str:
     return library + "\n".join(lines)
 
 
+def _artifact_plan(artifact: Artifact) -> managed.Plan:
+    plan = managed.classify(
+        artifact.key, artifact.path, artifact.content, b"", None
+    )
+    if plan.action == "noop" and artifact.path.stat().st_mode & 0o777 != artifact.mode:
+        return managed.Plan(
+            plan.key, plan.path, plan.desired, "replace", plan.existing
+        )
+    return plan
+
+
+def _write_artifacts(artifacts: Sequence[Artifact], force: bool) -> None:
+    paths = tuple(artifact.path.resolve() for artifact in artifacts)
+    if len(set(paths)) != len(paths):
+        raise ValueError("record and wizard paths must differ")
+    plans = tuple(_artifact_plan(artifact) for artifact in artifacts)
+    protected = tuple(managed.protect(plan) for plan in plans)
+    conflicts = tuple(plan for plan in plans if plan.action == "conflict")
+    if conflicts and not force:
+        paths_text = ", ".join(str(plan.path) for plan in conflicts)
+        raise ValueError(f"managed artifact conflict: {paths_text}; rerun with --force")
+    staged: list[tuple[managed.ProtectedPlan, pathlib.Path]] = []
+    try:
+        for artifact, protected_plan in zip(artifacts, protected, strict=True):
+            if protected_plan.plan.action == "noop":
+                continue
+            temporary = managed.stage_replacement(protected_plan)
+            temporary.chmod(artifact.mode)
+            staged.append((protected_plan, temporary))
+        for protected_plan, temporary in staged:
+            managed.commit(temporary, protected_plan.plan.path)
+    finally:
+        for _, temporary in staged:
+            temporary.unlink(missing_ok=True)
+
+
 def _context(args: argparse.Namespace, outside_project: pathlib.Path) -> Context:
     return Context(
         args.repo.resolve(), args.home.resolve(), dict(os.environ), outside_project.resolve()
@@ -793,6 +842,7 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     _common(probe)
     probe.add_argument("--record", type=pathlib.Path, required=True)
     probe.add_argument("--wizard", type=pathlib.Path)
+    probe.add_argument("--force", action="store_true")
     return parser.parse_args(argv)
 
 
@@ -813,17 +863,29 @@ def main(argv: Sequence[str]) -> int:
             sys.stdout.write(render_report(report, args.format))
         else:
             wizard_path = args.wizard
+            artifacts: list[Artifact] = []
             if wizard_path:
                 shared_result = _result(report, "skills.shared-path")
                 if shared_result is None or shared_result.status is not Status.PASS:
                     raise ValueError("skills.shared-path must pass before wizard generation")
                 template_path = pathlib.Path(shared_result.evidence.stdout) / "wizard" / "template.sh"
-                wizard_path.parent.mkdir(parents=True, exist_ok=True)
-                wizard_path.write_text(render_wizard(template_path.read_text(), report))
-                wizard_path.chmod(0o700)
-            args.record.parent.mkdir(parents=True, exist_ok=True)
-            args.record.write_text(render_record(_machine_record(report, context, wizard_path)))
-            args.record.chmod(0o600)
+                artifacts.append(
+                    Artifact(
+                        "wizard",
+                        wizard_path,
+                        render_wizard(template_path.read_text(), report).encode(),
+                        0o700,
+                    )
+                )
+            artifacts.append(
+                Artifact(
+                    "record",
+                    args.record,
+                    render_record(_machine_record(report, context, wizard_path)).encode(),
+                    0o600,
+                )
+            )
+            _write_artifacts(artifacts, args.force)
             print(f"record wrote {args.record}")
             if wizard_path:
                 print(f"wizard wrote {wizard_path}")

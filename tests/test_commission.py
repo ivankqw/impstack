@@ -543,6 +543,29 @@ class CommissionTests(unittest.TestCase):
         self.assertEqual(len(tuple(self.sandbox.glob("wizard.sh.impstack-backup.*"))), 1)
         self.assertIn("--force", result.stderr)
 
+    def test_probe_force_replaces_backed_up_artifacts(self) -> None:
+        record = self.sandbox / "record.md"
+        wizard = self.sandbox / "wizard.sh"
+        record.write_text("keep record\n")
+        wizard.write_text("keep wizard\n")
+
+        result = self.run_commission(
+            "probe",
+            "--record",
+            str(record),
+            "--wizard",
+            str(wizard),
+            "--force",
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        self.assertNotEqual(record.read_text(), "keep record\n")
+        self.assertNotEqual(wizard.read_text(), "keep wizard\n")
+        self.assertEqual(record.stat().st_mode & 0o777, 0o600)
+        self.assertEqual(wizard.stat().st_mode & 0o777, 0o700)
+        self.assertEqual(len(tuple(self.sandbox.glob("record.md.impstack-backup.*"))), 1)
+        self.assertEqual(len(tuple(self.sandbox.glob("wizard.sh.impstack-backup.*"))), 1)
+
     def test_probe_is_byte_idempotent(self) -> None:
         record = self.sandbox / "record.md"
         wizard = self.sandbox / "wizard.sh"
