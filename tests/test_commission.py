@@ -776,6 +776,25 @@ class CommissionTests(unittest.TestCase):
         self.assertIn("- Bun: `custom`. Version: `present`", content)
         self.assertIn("| claude | yes | 9.8.7 | yes | pass |", content)
 
+    def test_relative_xdg_state_home_is_normalized_before_commands(self) -> None:
+        relative = "relative-state"
+        opencode = self.fakebin / "opencode"
+        opencode.write_text(
+            opencode.read_text().replace(
+                "set -euo pipefail\n",
+                'set -euo pipefail\nmkdir -p "$XDG_STATE_HOME"\n',
+                1,
+            )
+        )
+
+        result = self.run_commission(
+            "check", env=self.environment(XDG_STATE_HOME=relative)
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        self.assertFalse((self.repo / relative).exists())
+        self.assertTrue((self.home / relative).is_dir())
+
     def test_safe_output_redacts_structured_secret_values(self) -> None:
         sentinel = "s3nt1nel-private-material-662"
         flat = commission_module._safe_output(
