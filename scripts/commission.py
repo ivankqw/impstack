@@ -898,7 +898,7 @@ def _load_wizard_template(path: pathlib.Path) -> str:
 
 def _artifact_plan(artifact: Artifact) -> managed.Plan:
     plan = managed.classify(
-        artifact.key, artifact.path, artifact.content, b"", None
+        artifact.key, artifact.path, artifact.content, artifact.content, None
     )
     if plan.action == "noop" and artifact.path.stat().st_mode & 0o777 != artifact.mode:
         return managed.Plan(
