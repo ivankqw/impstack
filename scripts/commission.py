@@ -60,7 +60,7 @@ class Assertion:
     remediation_statuses: tuple[Status, ...]
     absent_registration_reason: str | None
     absent_registration_exit_codes: tuple[int, ...]
-    absent_registration_requires_missing_stdout: bool
+    absent_registration_requires_stdout_without_expected: bool
     absent_registration_stderr_contains: str | None
 
 
@@ -268,12 +268,14 @@ def load_contract(path: pathlib.Path) -> tuple[Assertion, ...]:
             raise ValueError(f"invalid remediation: {assertion_id}")
         absent_reason: str | None = None
         absent_exit_codes: tuple[int, ...] = ()
-        absent_requires_missing_stdout = False
+        absent_requires_stdout_without_expected = False
         absent_stderr_contains: str | None = None
         if absent_registration is not None:
             absent = _expect_mapping(absent_registration, f"{assertion_id}.absent_registration")
             raw_exit_codes = absent.get("exit_codes")
-            absent_requires_missing_stdout = absent.get("requires_missing_stdout") is True
+            absent_requires_stdout_without_expected = (
+                absent.get("requires_stdout_without_expected") is True
+            )
             absent_stderr_contains = absent.get("stderr_contains")
             if (
                 absent.get("status") != Status.NOT_APPLICABLE.value
@@ -290,7 +292,7 @@ def load_contract(path: pathlib.Path) -> tuple[Assertion, ...]:
                     )
                 )
                 or not (
-                    absent_requires_missing_stdout
+                    absent_requires_stdout_without_expected
                     or (
                         isinstance(absent_stderr_contains, str)
                         and bool(absent_stderr_contains)
@@ -324,7 +326,9 @@ def load_contract(path: pathlib.Path) -> tuple[Assertion, ...]:
                 remediation_statuses=tuple(Status(status) for status in remediation_statuses),
                 absent_registration_reason=absent_reason,
                 absent_registration_exit_codes=absent_exit_codes,
-                absent_registration_requires_missing_stdout=absent_requires_missing_stdout,
+                absent_registration_requires_stdout_without_expected=(
+                    absent_requires_stdout_without_expected
+                ),
                 absent_registration_stderr_contains=absent_stderr_contains,
             )
         )
@@ -499,7 +503,7 @@ def evaluate(assertions: Sequence[Assertion], context: Context) -> Report:
             and assertion.absent_registration_reason is not None
             and evidence.exit_code in assertion.absent_registration_exit_codes
             and (
-                not assertion.absent_registration_requires_missing_stdout
+                not assertion.absent_registration_requires_stdout_without_expected
                 or (
                     assertion.stdout_contains is not None
                     and assertion.stdout_contains not in evidence.stdout

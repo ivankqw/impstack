@@ -476,7 +476,7 @@
         "exit_codes": [
           1
         ],
-        "requires_missing_stdout": false,
+        "requires_stdout_without_expected": false,
         "stderr_contains": "No MCP server named 'context7' found."
       }
     },
@@ -608,7 +608,7 @@
         "exit_codes": [
           0
         ],
-        "requires_missing_stdout": true
+        "requires_stdout_without_expected": true
       }
     },
     {
@@ -644,7 +644,7 @@
         "exit_codes": [
           0
         ],
-        "requires_missing_stdout": true
+        "requires_stdout_without_expected": true
       }
     },
     {
@@ -680,7 +680,7 @@
         "exit_codes": [
           0
         ],
-        "requires_missing_stdout": true
+        "requires_stdout_without_expected": true
       }
     },
     {
@@ -723,7 +723,7 @@
         "exit_codes": [
           0
         ],
-        "requires_missing_stdout": true
+        "requires_stdout_without_expected": true
       }
     },
     {
