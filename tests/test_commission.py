@@ -518,6 +518,14 @@ class CommissionTests(unittest.TestCase):
             '{"session_token": <redacted>, "authorization": "Bearer <redacted>"}',
         )
 
+    def test_probe_record_is_owner_only(self) -> None:
+        record = self.sandbox / "record.md"
+
+        result = self.run_commission("probe", "--record", str(record))
+
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        self.assertEqual(record.stat().st_mode & 0o777, 0o600)
+
     def test_probe_is_byte_idempotent(self) -> None:
         record = self.sandbox / "record.md"
         wizard = self.sandbox / "wizard.sh"
