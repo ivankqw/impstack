@@ -92,6 +92,60 @@ class Context:
     outside_project: pathlib.Path
 
 
+@dataclasses.dataclass(frozen=True)
+class RuntimeRecord:
+    name: str
+    path: str
+    version: str
+
+
+@dataclasses.dataclass(frozen=True)
+class HarnessRecord:
+    name: str
+    installed: bool
+    version: str
+    authenticated: bool
+    conventions: Status | None
+
+
+@dataclasses.dataclass(frozen=True)
+class ConnectionRecord:
+    server: str
+    harness: str
+    status: Status
+    message: str
+
+
+@dataclasses.dataclass(frozen=True)
+class ContractRecord:
+    assertion_id: str
+    status: Status
+    command: str
+    message: str
+
+
+@dataclasses.dataclass(frozen=True)
+class RemediationRecord:
+    assertion_id: str
+    text: str
+
+
+@dataclasses.dataclass(frozen=True)
+class MachineRecord:
+    hostname: str
+    os_name: str
+    os_version: str
+    container: bool
+    shell: str
+    runtimes: tuple[RuntimeRecord, ...]
+    xdg_state_home: str
+    shared_skills: str
+    harnesses: tuple[HarnessRecord, ...]
+    connections: tuple[ConnectionRecord, ...]
+    contract: tuple[ContractRecord, ...]
+    remediations: tuple[RemediationRecord, ...]
+
+
 WIZARD_STAGES = {
     "claude-login": "Claude login",
     "codex-login": "Codex login",
@@ -227,10 +281,15 @@ def _safe_output(text: str, assertion_id: str) -> str:
     if ".executor." in assertion_id:
         text = re.sub(r"https?://\S+", "<redacted-url>", text)
     text = re.sub(
-        r"(?i)(token|secret|password|api[_-]?key)(\s*[:=]\s*)\S+",
-        r"\1\2<redacted>",
+        r'''(?ix)(
+            ["']?[a-z0-9_-]*(?:token|secret|password|api[_-]?key)[a-z0-9_-]*["']?
+            \s*[:=]\s*
+        )
+        (?:"[^"]*"|'[^']*'|[^,\s}\]]+)''',
+        r"\1<redacted>",
         text,
     )
+    text = re.sub(r'''(?i)\bbearer\s+[^\s"',}\]]+''', "Bearer <redacted>", text)
     lines = [line.strip() for line in text.splitlines() if line.strip()]
     return " | ".join(lines[-3:])[:600]
 
@@ -256,14 +315,14 @@ def _run(assertion: Assertion, context: Context) -> CommandEvidence:
             check=False,
         )
         return CommandEvidence(
-            command=shlex.join(command),
+            command=shlex.join(assertion.command),
             exit_code=completed.returncode,
             stdout=_safe_output(completed.stdout, assertion.assertion_id),
             stderr=_safe_output(completed.stderr, assertion.assertion_id),
         )
     except (FileNotFoundError, subprocess.TimeoutExpired) as error:
         return CommandEvidence(
-            command=shlex.join(command),
+            command=shlex.join(assertion.command),
             exit_code=None,
             stdout="",
             stderr=_safe_output(str(error), assertion.assertion_id),
@@ -394,6 +453,11 @@ def _result(report: Report, assertion_id: str) -> AssertionResult | None:
     return next((item for item in report.results if item.assertion_id == assertion_id), None)
 
 
+def _selected_version(value: str) -> str:
+    match = re.search(r"(?<![A-Za-z0-9])v?(\d+(?:\.\d+)+)(?![A-Za-z0-9])", value)
+    return match.group(1) if match else "present"
+
+
 def _version(command: str, context: Context) -> str:
     if shutil.which(command, path=context.environment.get("PATH")) is None:
         return "not installed"
@@ -402,92 +466,230 @@ def _version(command: str, context: Context) -> str:
         0, None, "command", "none", None, (Status.FAIL,), None, (), False,
     )
     evidence = _run(assertion, context)
-    return evidence.stdout or evidence.stderr or f"exit {evidence.exit_code}"
+    return _selected_version(evidence.stdout or evidence.stderr)
 
 
-def _runtime_value(report: Report, assertion_id: str) -> str:
+def _runtime_value(report: Report, assertion_id: str) -> str | None:
     result = _result(report, assertion_id)
     if result is None or result.status is not Status.PASS:
-        return "unavailable"
+        return None
     return result.evidence.stdout
 
 
-def render_record(report: Report, context: Context, wizard_path: pathlib.Path | None) -> str:
-    hostname = socket.gethostname()
-    safe_hostname = re.sub(r"[^a-z0-9-]+", "-", hostname.lower()).strip("-") or "unknown"
+def _runtime_version(report: Report, assertion_id: str) -> str:
+    value = _runtime_value(report, assertion_id)
+    return _selected_version(value) if value is not None else "unavailable"
+
+
+def _selected_path(
+    value: str | pathlib.Path | None,
+    known: Mapping[pathlib.Path, str],
+    unavailable: str,
+) -> str:
+    if value is None:
+        return unavailable
+    try:
+        path = pathlib.Path(value).expanduser().resolve()
+    except (OSError, RuntimeError):
+        return "custom"
+    for candidate, label in known.items():
+        if path == candidate.expanduser().resolve():
+            return label
+    return "custom"
+
+
+def _executable_path(value: str | None, command: str) -> str:
+    roots = (
+        pathlib.Path("/bin"),
+        pathlib.Path("/usr/bin"),
+        pathlib.Path("/usr/local/bin"),
+        pathlib.Path("/opt/homebrew/bin"),
+    )
+    return _selected_path(
+        value,
+        {root / command: str(root / command) for root in roots},
+        "not installed",
+    )
+
+
+def _machine_record(
+    report: Report, context: Context, wizard_path: pathlib.Path | None
+) -> MachineRecord:
+    hostname = re.sub(r"[^a-z0-9-]+", "-", socket.gethostname().lower()).strip("-") or "unknown"
     container = pathlib.Path("/.dockerenv").exists() or pathlib.Path("/run/.containerenv").exists()
-    shared = _runtime_value(report, "skills.shared-path")
-    node_path = _runtime_value(report, "runtime.node")
-    npx_path = _runtime_value(report, "runtime.npx")
-    bun_path = shutil.which("bun", path=context.environment.get("PATH")) or "not installed"
-    xdg = context.environment.get("XDG_STATE_HOME", "not set")
-    lines = [
-        "---",
-        f"name: machine-{safe_hostname}",
-        "description: Use for setup, troubleshooting, or provisioning on this machine.",
-        "---",
-        "",
-        f"# Machine {hostname}",
-        "",
-        "## Identity",
-        "",
-        f"- Hostname: `{hostname}`",
-        f"- OS: `{platform.system()} {platform.release()}`",
-        f"- Container: `{'yes' if container else 'no'}`",
-        f"- Shell: `{context.environment.get('SHELL', 'unknown')}`",
-        "",
-        "## Runtime",
-        "",
-        f"- Node: `{node_path}`. Version: `{_version('node', context)}`",
-        f"- npx: `{npx_path}`. Version: `{_version('npx', context)}`",
-        f"- Bun: `{bun_path}`. Version: `{_version('bun', context)}`",
-        f"- Package manager: `{shutil.which('npm', path=context.environment.get('PATH')) or 'unavailable'}`. "
-        f"Version: `{_runtime_value(report, 'runtime.package-manager')}`",
-        f"- XDG state home: `{xdg}`",
-        f"- Shared skills: `{shared}`",
-        "",
-        "## Harnesses",
-        "",
-        "| Harness | Installed | Version | Authenticated | Conventions |",
-        "|---|---|---|---|---|",
-    ]
+    system = platform.system()
+    os_name = system if system in {"Linux", "Darwin", "Windows"} else "other"
+    default_shared = context.home / ".agents" / "skills"
+    default_xdg = context.home / ".local" / "state"
+    default_wizard = context.home / ".config" / "impstack" / "commission-wizard.sh"
+    runtimes = (
+        RuntimeRecord(
+            "Node",
+            _executable_path(_runtime_value(report, "runtime.node"), "node"),
+            _version("node", context),
+        ),
+        RuntimeRecord(
+            "npx",
+            _executable_path(_runtime_value(report, "runtime.npx"), "npx"),
+            _version("npx", context),
+        ),
+        RuntimeRecord(
+            "Bun",
+            _executable_path(shutil.which("bun", path=context.environment.get("PATH")), "bun"),
+            _version("bun", context),
+        ),
+        RuntimeRecord(
+            "Package manager",
+            _executable_path(shutil.which("npm", path=context.environment.get("PATH")), "npm"),
+            _runtime_version(report, "runtime.package-manager"),
+        ),
+    )
+    harnesses: list[HarnessRecord] = []
     for harness in ("claude", "codex", "opencode"):
         auth = _result(report, f"harness.{harness}.auth")
         canary = _result(report, f"harness.{harness}.canary")
-        installed = auth is not None and auth.status is not Status.NOT_APPLICABLE
+        harnesses.append(
+            HarnessRecord(
+                harness,
+                auth is not None and auth.status is not Status.NOT_APPLICABLE,
+                _version(harness, context),
+                auth is not None and auth.status is Status.PASS,
+                canary.status if canary else None,
+            )
+        )
+    connections = tuple(
+        ConnectionRecord(
+            result.assertion_id.split(".")[1],
+            result.assertion_id.split(".")[2],
+            result.status,
+            result.message,
+        )
+        for result in report.results
+        if result.assertion_id.startswith("mcp.")
+    )
+    contract = tuple(
+        ContractRecord(
+            result.assertion_id,
+            result.status,
+            result.evidence.command,
+            result.message,
+        )
+        for result in report.results
+    )
+    wizard_location = _selected_path(
+        wizard_path,
+        {default_wizard: "$HOME/.config/impstack/commission-wizard.sh"},
+        "custom",
+    )
+    remediations: list[RemediationRecord] = []
+    for result in report.results:
+        if result.status not in result.remediation_statuses or (
+            result.status is Status.NOT_APPLICABLE
+            and not result.applicability.remediation_actionable
+        ):
+            continue
+        text = (
+            f"Run wizard stage `{result.remediation_text}` from `{wizard_location}`."
+            if result.remediation_kind == "wizard" and wizard_path
+            else result.remediation_text
+        )
+        remediations.append(RemediationRecord(result.assertion_id, text))
+    return MachineRecord(
+        hostname=hostname,
+        os_name=os_name,
+        os_version=_selected_version(platform.release()),
+        container=container,
+        shell=_selected_path(
+            context.environment.get("SHELL"),
+            {
+                pathlib.Path(path): path
+                for path in (
+                    "/bin/bash",
+                    "/bin/sh",
+                    "/bin/zsh",
+                    "/usr/bin/bash",
+                    "/usr/bin/fish",
+                    "/usr/bin/zsh",
+                    "/opt/homebrew/bin/fish",
+                    "/opt/homebrew/bin/zsh",
+                )
+            },
+            "unknown",
+        ),
+        runtimes=runtimes,
+        xdg_state_home=_selected_path(
+            context.environment.get("XDG_STATE_HOME"),
+            {default_xdg: "$HOME/.local/state"},
+            "not set",
+        ),
+        shared_skills=_selected_path(
+            _runtime_value(report, "skills.shared-path"),
+            {default_shared: "$HOME/.agents/skills"},
+            "unavailable",
+        ),
+        harnesses=tuple(harnesses),
+        connections=connections,
+        contract=contract,
+        remediations=tuple(remediations),
+    )
+
+
+def render_record(record: MachineRecord) -> str:
+    lines = [
+        "---",
+        f"name: machine-{record.hostname}",
+        "description: Use for setup, troubleshooting, or provisioning on this machine.",
+        "---",
+        "",
+        f"# Machine {record.hostname}",
+        "",
+        "## Identity",
+        "",
+        f"- Hostname: `{record.hostname}`",
+        f"- OS: `{record.os_name} {record.os_version}`",
+        f"- Container: `{'yes' if record.container else 'no'}`",
+        f"- Shell: `{record.shell}`",
+        "",
+        "## Runtime",
+        "",
+    ]
+    for runtime in record.runtimes:
         lines.append(
-            f"| {harness} | {'yes' if installed else 'no'} | {_version(harness, context)} | "
-            f"{auth.status.value if auth else 'unknown'} | "
-            f"{canary.status.value if canary else 'unknown'} |"
+            f"- {runtime.name}: `{runtime.path}`. Version: `{runtime.version}`"
+        )
+    lines.extend(
+        [
+            f"- XDG state home: `{record.xdg_state_home}`",
+            f"- Shared skills: `{record.shared_skills}`",
+            "",
+            "## Harnesses",
+            "",
+            "| Harness | Installed | Version | Authenticated | Conventions |",
+            "|---|---|---|---|---|",
+        ]
+    )
+    for harness in record.harnesses:
+        lines.append(
+            f"| {harness.name} | {'yes' if harness.installed else 'no'} | {harness.version} | "
+            f"{'yes' if harness.authenticated else 'no'} | "
+            f"{harness.conventions.value if harness.conventions else 'unknown'} |"
         )
     lines.extend(["", "## Connections", ""])
-    for result in report.results:
-        if result.assertion_id.startswith("mcp."):
-            _, server, harness = result.assertion_id.split(".")
-            lines.append(f"- {server} for {harness}: `{result.status.value}`. {result.message}")
-    lines.extend(["", "## Contract", ""])
-    for result in report.results:
+    for connection in record.connections:
         lines.append(
-            f"- `{result.assertion_id}`: `{result.status.value}`. Command: `{result.evidence.command}`. {result.message}"
+            f"- {connection.server} for {connection.harness}: `{connection.status.value}`. "
+            f"{connection.message}"
+        )
+    lines.extend(["", "## Contract", ""])
+    for assertion in record.contract:
+        lines.append(
+            f"- `{assertion.assertion_id}`: `{assertion.status.value}`. "
+            f"Command: `{assertion.command}`. {assertion.message}"
         )
     lines.extend(["", "## Remediation", ""])
-    actionable = [
-        result
-        for result in report.results
-        if result.status in result.remediation_statuses
-        and (
-            result.status is not Status.NOT_APPLICABLE
-            or result.applicability.remediation_actionable
-        )
-    ]
-    if actionable:
-        for result in actionable:
-            remediation = (
-                f"Run wizard stage `{result.remediation_text}` from `{wizard_path}`."
-                if result.remediation_kind == "wizard" and wizard_path
-                else result.remediation_text
-            )
-            lines.append(f"- `{result.assertion_id}`: {remediation}")
+    if record.remediations:
+        for remediation in record.remediations:
+            lines.append(f"- `{remediation.assertion_id}`: {remediation.text}")
     else:
         lines.append("- No failed assertions require remediation.")
     return "\n".join(lines) + "\n"
@@ -620,7 +822,7 @@ def main(argv: Sequence[str]) -> int:
                 wizard_path.write_text(render_wizard(template_path.read_text(), report))
                 wizard_path.chmod(0o700)
             args.record.parent.mkdir(parents=True, exist_ok=True)
-            args.record.write_text(render_record(report, context, wizard_path))
+            args.record.write_text(render_record(_machine_record(report, context, wizard_path)))
             print(f"record wrote {args.record}")
             if wizard_path:
                 print(f"wizard wrote {wizard_path}")

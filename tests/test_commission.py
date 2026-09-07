@@ -9,6 +9,8 @@ import tempfile
 import textwrap
 import unittest
 
+from scripts import commission as commission_module
+
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 COMMISSION = ROOT / "bin" / "commission"
@@ -419,7 +421,7 @@ class CommissionTests(unittest.TestCase):
         self.assertNotIn("PLACEHOLDER", content)
         self.assertNotIn(";", content)
         self.assertIn("Package manager: `", content)
-        self.assertIn("npm 1.2.3", content)
+        self.assertIn("Version: `1.2.3`", content)
         wizard_text = wizard.read_text()
         self.assertIn('stage "Codex login"', wizard_text)
         self.assertNotIn('stage "Claude login"', wizard_text)
@@ -469,12 +471,13 @@ class CommissionTests(unittest.TestCase):
         wrapped_bin = self.sandbox / f"tools-{sentinel}"
         wrapped_bin.mkdir()
         for name in ("node", "npx", "npm", "bun", "claude", "codex", "opencode"):
+            version = "release" if name == "bun" else "9.8.7"
             self.write_executable(
                 wrapped_bin / name,
                 textwrap.dedent(
                     f"""\
                     if [[ "${{1:-}}" == "--version" ]]; then
-                      printf '%s\\n' '{name} 9.8.7 {{"session_token": "{sentinel}"}}'
+                      printf '%s\\n' '{name} {version} {{"session_token": "{sentinel}"}}'
                       exit 0
                     fi
                     exec "{self.fakebin / name}" "$@"
@@ -499,7 +502,21 @@ class CommissionTests(unittest.TestCase):
         self.assertIn("- Shell: `custom`", content)
         self.assertIn("- XDG state home: `custom`", content)
         self.assertIn("- Shared skills: `$HOME/.agents/skills`", content)
+        self.assertIn("- Bun: `custom`. Version: `present`", content)
         self.assertIn("| claude | yes | 9.8.7 | yes | pass |", content)
+
+    def test_safe_output_redacts_structured_secret_values(self) -> None:
+        sentinel = "s3nt1nel-private-material-662"
+        output = commission_module._safe_output(
+            f'{{"session_token": "{sentinel}", "authorization": "Bearer {sentinel}"}}',
+            "inventory",
+        )
+
+        self.assertNotIn(sentinel, output)
+        self.assertEqual(
+            output,
+            '{"session_token": <redacted>, "authorization": "Bearer <redacted>"}',
+        )
 
     def test_probe_is_byte_idempotent(self) -> None:
         record = self.sandbox / "record.md"
