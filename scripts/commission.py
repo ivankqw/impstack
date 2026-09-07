@@ -230,6 +230,13 @@ def load_contract(path: pathlib.Path) -> tuple[Assertion, ...]:
                 expectation.get("stdout_contains") is not None
                 and expectation.get("stdout_equals") is not None
             )
+            and (
+                item.get("kind") != "canary"
+                or (
+                    isinstance(expectation.get("stdout_equals"), str)
+                    and bool(expectation.get("stdout_equals"))
+                )
+            )
             and remediation.get("kind") in {"command", "wizard"}
         )
         if not valid:
@@ -271,11 +278,17 @@ def load_contract(path: pathlib.Path) -> tuple[Assertion, ...]:
                 or not all(isinstance(code, int) for code in raw_exit_codes)
                 or (
                     absent_stderr_contains is not None
-                    and not isinstance(absent_stderr_contains, str)
+                    and (
+                        not isinstance(absent_stderr_contains, str)
+                        or not absent_stderr_contains
+                    )
                 )
                 or not (
                     absent_requires_missing_stdout
-                    or isinstance(absent_stderr_contains, str)
+                    or (
+                        isinstance(absent_stderr_contains, str)
+                        and bool(absent_stderr_contains)
+                    )
                 )
             ):
                 raise ValueError(f"invalid absent registration: {assertion_id}")
