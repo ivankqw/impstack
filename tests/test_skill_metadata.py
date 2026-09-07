@@ -17,6 +17,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 import sys
 
 sys.path.insert(0, str(ROOT / "scripts"))
+import managed_instructions
 import skill_metadata
 
 
@@ -790,6 +791,28 @@ class SkillMetadataTest(unittest.TestCase):
             self.assertNotEqual(result.returncode, 0)
             self.assertEqual(target.read_bytes(), operator_content)
             self.assertNotIn("Traceback", result.stderr)
+
+    def test_instruction_backup_is_private_at_creation(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            target = pathlib.Path(temp) / "AGENTS.md"
+            target.write_text("private instructions\n")
+            plan = managed_instructions.classify(
+                "AGENTS.md",
+                target,
+                b"replacement instructions\n",
+                b"legacy instructions\n",
+                None,
+            )
+
+            previous_umask = os.umask(0o022)
+            try:
+                protected = managed_instructions.protect(plan)
+            finally:
+                os.umask(previous_umask)
+
+            self.assertIsNotNone(protected.backup_path)
+            assert protected.backup_path is not None
+            self.assertEqual(protected.backup_path.stat().st_mode & 0o777, 0o600)
 
     def test_instruction_state_read_failure_degrades_to_unknown_provenance(self) -> None:
         corrupt_states = (
