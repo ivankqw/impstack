@@ -643,7 +643,7 @@ def _executable_path(value: str | None, command: str) -> str:
 
 
 def _machine_name() -> str:
-    hostname = socket.gethostname().lower()
+    hostname = re.sub(r"[^a-z0-9-]+", "-", socket.gethostname().lower()).strip("-")
     return f"machine-{hostname or 'unknown'}"
 
 
