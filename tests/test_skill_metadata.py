@@ -924,6 +924,39 @@ class SkillMetadataTest(unittest.TestCase):
             self.assertEqual(len(result.stderr.splitlines()), 1, result.stderr)
             self.assertIn(str(state_root / "impstack/instructions.json"), result.stderr)
 
+    def test_managed_instructions_anchors_relative_xdg_beneath_home(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = pathlib.Path(temp)
+            home = root / "home"
+            home.mkdir()
+            relative = "relative-state"
+            env = os.environ.copy()
+            env["XDG_STATE_HOME"] = relative
+
+            result = subprocess.run(
+                [
+                    "/usr/bin/python3",
+                    str(ROOT / "scripts/managed_instructions.py"),
+                    "--root",
+                    str(ROOT),
+                    "--home",
+                    str(home),
+                    "--private",
+                    str(root / "missing-private"),
+                ],
+                cwd=root,
+                env=env,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+            self.assertFalse((root / relative).exists())
+            self.assertTrue(
+                (home / relative / "impstack/instructions.json").is_file()
+            )
+
     def test_instruction_pair_is_written_before_the_state_commit(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = pathlib.Path(temp)

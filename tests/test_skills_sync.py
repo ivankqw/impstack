@@ -748,8 +748,8 @@ class SkillsSyncTests(unittest.TestCase):
             "SHARED_SKILLS": "relative/skills",
             "SKILLS_LOCK_FILE": "relative/state/lock.json",
         }
-        expected_shared = (repo / "relative/skills").resolve()
-        expected_lock = (repo / "relative/state/lock.json").resolve()
+        expected_shared = (home / "relative/skills").resolve()
+        expected_lock = (home / "relative/state/lock.json").resolve()
 
         shared = self.run_cli(repo, home, "resolve-shared", path=str(fakebin), env_overrides=overrides)
         lock = self.run_cli(repo, home, "resolve-lock", path=str(fakebin), env_overrides=overrides)
@@ -770,12 +770,12 @@ class SkillsSyncTests(unittest.TestCase):
             executable = fakebin / name
             executable.write_text("#!/bin/sh\n")
             executable.chmod(0o755)
-        expected_xdg = (repo / "relative-state").resolve()
+        expected_xdg = (home / "relative-state").resolve()
         overrides = {
             "XDG_STATE_HOME": "relative-state",
             "SKILLS_LOCK_FILE": "relative-config/lock.json",
         }
-        expected_lock = (repo / "relative-config/lock.json").resolve()
+        expected_lock = (home / "relative-config/lock.json").resolve()
 
         lock = self.run_cli(repo, home, "resolve-lock", path=str(fakebin), env_overrides=overrides)
         schedule = self.run_cli(repo, home, "schedule", path=str(fakebin), env_overrides=overrides)

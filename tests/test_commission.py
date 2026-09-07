@@ -810,6 +810,21 @@ class CommissionTests(unittest.TestCase):
         self.assertFalse((self.repo / relative).exists())
         self.assertTrue((self.home / relative).is_dir())
 
+    def test_probe_anchors_relative_shared_skills_beneath_home(self) -> None:
+        relative = "relative-skills"
+
+        result = self.run_commission(
+            "probe",
+            env=self.environment(SHARED_SKILLS=relative),
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        self.assertFalse((self.repo / relative).exists())
+        self.assertEqual(
+            len(tuple((self.home / relative).glob("machine-*/SKILL.md"))),
+            1,
+        )
+
     def test_safe_output_redacts_structured_secret_values(self) -> None:
         sentinel = "s3nt1nel-private-material-662"
         flat = commission_module._safe_output(
