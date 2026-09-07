@@ -823,6 +823,7 @@ def main(argv: Sequence[str]) -> int:
                 wizard_path.chmod(0o700)
             args.record.parent.mkdir(parents=True, exist_ok=True)
             args.record.write_text(render_record(_machine_record(report, context, wizard_path)))
+            args.record.chmod(0o600)
             print(f"record wrote {args.record}")
             if wizard_path:
                 print(f"wizard wrote {wizard_path}")
