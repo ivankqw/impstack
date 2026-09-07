@@ -984,10 +984,9 @@ def _context(args: argparse.Namespace, outside_project: pathlib.Path) -> Context
     environment = dict(os.environ)
     raw_xdg = environment.get("XDG_STATE_HOME")
     if raw_xdg:
-        xdg_state_home = pathlib.Path(raw_xdg).expanduser()
-        if not xdg_state_home.is_absolute():
-            xdg_state_home = home / xdg_state_home
-        environment["XDG_STATE_HOME"] = str(xdg_state_home.resolve())
+        environment["XDG_STATE_HOME"] = str(
+            pathlib.Path(raw_xdg).expanduser().resolve()
+        )
     elif raw_xdg == "":
         environment.pop("XDG_STATE_HOME")
     return Context(args.repo.resolve(), home, environment, outside_project.resolve())
