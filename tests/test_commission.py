@@ -765,13 +765,16 @@ class CommissionTests(unittest.TestCase):
             f'{{"session_token": "{sentinel}", "authorization": "Bearer {sentinel}"}}',
             "inventory",
         )
-        nested = commission_module._safe_output(
-            f'{{"session_token": {{"value": "{sentinel}"}}}}',
-            "inventory",
-        )
+        nested = {
+            "data": [
+                {"session_token": sentinel},
+                {"metadata": {"api_key": sentinel}},
+            ]
+        }
+        redacted = commission_module._redact_structured(nested)
 
         self.assertNotIn(sentinel, flat)
-        self.assertNotIn(sentinel, nested)
+        self.assertNotIn(sentinel, json.dumps(redacted))
         self.assertEqual(
             flat,
             '{"session_token": <redacted>, "authorization": "Bearer <redacted>"}',

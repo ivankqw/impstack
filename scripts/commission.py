@@ -354,10 +354,10 @@ def _redact_structured(value: object) -> object:
             ):
                 redacted[str(key)] = "<redacted>"
             else:
-                redacted[str(key)] = _redact_structured(item)
+                redacted[str(key)] = item
         return redacted
     if isinstance(value, list):
-        return [_redact_structured(item) for item in value]
+        return value
     return value
 
 
