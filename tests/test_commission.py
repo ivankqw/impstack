@@ -99,6 +99,7 @@ class CommissionTests(unittest.TestCase):
                       auth|login) printf 'authenticated\\n' ;;
                       mcp)
                         if [[ "${{COMMISSION_FAKE_ABSENT:-}}" == true && "{name}" == codex ]]; then
+                          printf "Error: No MCP server named '%s' found.\n" "${{3:-}}" >&2
                           exit 1
                         fi
                         if [[ "${{2:-}}" == "list" ]]; then
@@ -341,6 +342,17 @@ class CommissionTests(unittest.TestCase):
         for assertion_id in unsupported:
             self.assertEqual(report[assertion_id]["status"], "not-applicable")
             self.assertIn("install.sh cannot register", report[assertion_id]["message"])
+
+    def test_generic_codex_failure_is_not_treated_as_missing_context7(self) -> None:
+        self.write_executable(self.fakebin / "codex", "exit 1\n")
+
+        result = self.run_commission("check", "--format", "json")
+
+        report = {
+            item["id"]: item for item in json.loads(result.stdout)["assertions"]
+        }
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(report["mcp.context7.codex"]["status"], "fail")
 
     def test_unknown_wizard_stage_id_fails_contract_loading(self) -> None:
         contract = json.loads(CONTRACT.read_text())
