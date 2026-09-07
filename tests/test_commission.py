@@ -826,6 +826,18 @@ class CommissionTests(unittest.TestCase):
         self.assertEqual(len(tuple(self.sandbox.glob("wizard.sh.impstack-backup.*"))), 1)
         self.assertIn("--force", result.stderr)
 
+    def test_probe_reports_stale_record_staging_file(self) -> None:
+        record = self.sandbox / "record.md"
+        stale = self.sandbox / ".record.md.abandoned"
+        stale.write_text("partial staged record\n")
+
+        result = self.run_commission("probe", "--record", str(record))
+
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("stale managed artifact staging file", result.stderr)
+        self.assertTrue(stale.exists())
+        self.assertFalse(record.exists())
+
     def test_artifact_backup_is_private_at_creation(self) -> None:
         record = self.sandbox / "record.md"
         record.write_text("private existing record\n")
