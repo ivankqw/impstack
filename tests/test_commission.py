@@ -437,6 +437,25 @@ class CommissionTests(unittest.TestCase):
         self.assertEqual(record.read_text(), "keep record\n")
         self.assertEqual(wizard.read_text(), "keep wizard\n")
 
+    def test_incompatible_wizard_template_names_the_missing_helper(self) -> None:
+        template = self.home / ".agents" / "skills" / "wizard" / "template.sh"
+        template.write_text(
+            template.read_text().replace(
+                'ask_secret(){ printf -v "$1" value; }\n', ""
+            )
+        )
+        record = self.sandbox / "record.md"
+        wizard = self.sandbox / "wizard.sh"
+
+        result = self.run_commission(
+            "probe", "--record", str(record), "--wizard", str(wizard)
+        )
+
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("wizard template is missing helper: ask_secret", result.stderr)
+        self.assertFalse(record.exists())
+        self.assertFalse(wizard.exists())
+
     def test_contract_declares_actionable_statuses(self) -> None:
         contract = json.loads(CONTRACT.read_text())
 

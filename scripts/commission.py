@@ -173,6 +173,18 @@ WIZARD_STAGES = {
     "executor-connection": "Executor connection",
 }
 
+WIZARD_HELPERS = (
+    "banner",
+    "stage",
+    "say",
+    "step",
+    "open_url",
+    "confirm",
+    "ask_secret",
+    "write_env",
+    "finish",
+)
+
 
 def _expect_mapping(value: object, label: str) -> Mapping[str, object]:
     if not isinstance(value, dict):
@@ -835,6 +847,18 @@ def render_wizard(template: str, report: Report) -> str:
     return library + "\n".join(lines)
 
 
+def _load_wizard_template(path: pathlib.Path) -> str:
+    if not path.is_file():
+        raise ValueError(
+            f"wizard template is missing: {path}; install the wizard skill"
+        )
+    template = path.read_text()
+    for helper in WIZARD_HELPERS:
+        if re.search(rf"(?m)^{re.escape(helper)}\s*\(\)\s*\{{", template) is None:
+            raise ValueError(f"wizard template is missing helper: {helper}")
+    return template
+
+
 def _artifact_plan(artifact: Artifact) -> managed.Plan:
     plan = managed.classify(
         artifact.key, artifact.path, artifact.content, b"", None
@@ -925,7 +949,7 @@ def main(argv: Sequence[str]) -> int:
                     Artifact(
                         "wizard",
                         wizard_path,
-                        render_wizard(template_path.read_text(), report).encode(),
+                        render_wizard(_load_wizard_template(template_path), report).encode(),
                         0o700,
                     )
                 )
