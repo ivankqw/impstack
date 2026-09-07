@@ -70,6 +70,11 @@ class SkillsSyncTests(unittest.TestCase):
         env["SHARED_SKILLS"] = str(home / ".agents" / "skills")
         env.pop("XDG_STATE_HOME", None)
         if path is not None:
+            fakebin = pathlib.Path(path.split(os.pathsep, 1)[0])
+            if (fakebin / "npx").exists() and not (fakebin / "node").exists():
+                node = fakebin / "node"
+                node.write_text("#!/usr/bin/env bash\nexit 0\n")
+                node.chmod(0o755)
             env["PATH"] = path
             for name in (
                 "NVM_BIN",

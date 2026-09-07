@@ -25,6 +25,13 @@ TEST_SYSTEM_PATH = os.pathsep.join(("/usr/bin", "/bin"))
 
 
 def hermetic_test_path(fakebin: pathlib.Path) -> str:
+    # Tests that provide a fake npx exercise the Node-backed command path. Keep
+    # that fixture internally consistent now that preflight validates both
+    # executables instead of accidentally borrowing Node from the host.
+    if (fakebin / "npx").exists() and not (fakebin / "node").exists():
+        node = fakebin / "node"
+        node.write_text("#!/usr/bin/env bash\nexit 0\n")
+        node.chmod(0o755)
     path = os.pathsep.join((str(fakebin), TEST_SYSTEM_PATH))
     for command in ("claude", "codex", "opencode"):
         resolved = shutil.which(command, path=path)
@@ -1654,6 +1661,10 @@ class SkillMetadataTest(unittest.TestCase):
         fakebin = root / "bin"
         home.mkdir()
         fakebin.mkdir()
+        for name in ("node", "npx"):
+            executable = fakebin / name
+            executable.write_text("#!/usr/bin/env bash\nexit 0\n")
+            executable.chmod(0o755)
         env = self.base_runtime_env(home, fakebin)
 
         result = subprocess.run(
@@ -1786,16 +1797,10 @@ class SkillMetadataTest(unittest.TestCase):
             )
             original_claude = original_snapshot[".claude/CLAUDE.md"][1]
             new_claude = new_snapshot[".claude/CLAUDE.md"][1]
-            self.assertEqual(
-                new_claude.split(b"\n", 1)[1],
-                original_claude.split(b"\n", 1)[1],
-            )
+            self.assertEqual(new_claude, original_claude)
             original_codex = original_snapshot["AGENTS.md"][1]
             new_codex = new_snapshot["AGENTS.md"][1]
-            self.assertEqual(
-                new_codex.split(b"\n", 1)[1],
-                original_codex.split(b"\n", 1)[1],
-            )
+            self.assertEqual(new_codex, original_codex)
 
     def test_install_lists_exact_step_names(self) -> None:
         result = subprocess.run(
