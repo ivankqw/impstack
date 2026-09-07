@@ -652,6 +652,23 @@ class CommissionTests(unittest.TestCase):
             f"record wrote $HOME/.agents/skills/{record.parent.name}/SKILL.md",
         )
 
+    def test_machine_record_path_sanitizes_untrusted_hostname(self) -> None:
+        shared = self.sandbox / "shared"
+        report = commission_module.Report(())
+        cases = (
+            ("/../ Host Name ", "machine-host-name"),
+            ("", "machine-unknown"),
+        )
+
+        for hostname, expected in cases:
+            with self.subTest(hostname=hostname), mock.patch.object(
+                commission_module.socket, "gethostname", return_value=hostname
+            ), mock.patch.object(
+                commission_module, "_runtime_value", return_value=str(shared)
+            ):
+                path = commission_module._machine_record_path(report)
+                self.assertEqual(path.relative_to(shared).parts, (expected, "SKILL.md"))
+
     def test_custom_shared_path_is_not_printed(self) -> None:
         sentinel = "s3nt1nel-private-path-814"
         shared = self.sandbox / sentinel / "skills"
