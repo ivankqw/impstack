@@ -814,6 +814,34 @@ class SkillMetadataTest(unittest.TestCase):
             assert protected.backup_path is not None
             self.assertEqual(protected.backup_path.stat().st_mode & 0o777, 0o600)
 
+    def test_instruction_preflight_rejects_stale_staging_files(self) -> None:
+        for case in ("instruction", "state"):
+            with self.subTest(case=case), tempfile.TemporaryDirectory() as temp:
+                root = pathlib.Path(temp)
+                home, env = self.create_valid_install_fixture(root)
+                state_path = home / ".local/state/impstack/instructions.json"
+                target = home / "AGENTS.md"
+                managed_path = target if case == "instruction" else state_path
+                managed_path.parent.mkdir(parents=True, exist_ok=True)
+                stale = managed_path.with_name(f".{managed_path.name}.abandoned")
+                stale.write_text("interrupted staged content\n")
+
+                result = subprocess.run(
+                    [str(ROOT / "install.sh"), "instructions"],
+                    cwd=ROOT,
+                    env=env,
+                    text=True,
+                    capture_output=True,
+                    check=False,
+                )
+
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("stale managed artifact staging file", result.stderr)
+                self.assertTrue(stale.exists())
+                self.assertFalse(target.exists())
+                self.assertFalse((home / ".claude/CLAUDE.md").exists())
+                self.assertFalse(state_path.exists())
+
     def test_instruction_state_read_failure_degrades_to_unknown_provenance(self) -> None:
         corrupt_states = (
             ("malformed JSON", b"{broken\n"),
