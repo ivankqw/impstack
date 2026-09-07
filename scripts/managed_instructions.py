@@ -24,6 +24,7 @@ class Plan:
     desired: bytes
     action: str
     existing: bytes | None
+    mode: int = 0o600
 
 
 @dataclass(frozen=True)
@@ -60,22 +61,30 @@ def file_digest(content: bytes) -> str:
     return hashlib.sha256(content).hexdigest()
 
 
-def classify(key: str, path: pathlib.Path, desired: bytes, legacy: bytes, recorded: str | None) -> Plan:
+def classify(
+    key: str,
+    path: pathlib.Path,
+    desired: bytes,
+    legacy: bytes,
+    recorded: str | None,
+    *,
+    mode: int = 0o600,
+) -> Plan:
     try:
         if not path.exists():
-            return Plan(key, path, desired, "replace", None)
+            return Plan(key, path, desired, "replace", None, mode)
         existing = path.read_bytes()
     except OSError as error:
         raise InstructionFilesystemError(
             f"could not read instruction file: {path}: {error.strerror or error}"
         ) from None
     if existing == desired:
-        return Plan(key, path, desired, "noop", existing)
+        return Plan(key, path, desired, "noop", existing, mode)
     if recorded == file_digest(existing):
-        return Plan(key, path, desired, "replace", existing)
+        return Plan(key, path, desired, "replace", existing, mode)
     if existing == legacy:
-        return Plan(key, path, desired, "replace", existing)
-    return Plan(key, path, desired, "conflict", existing)
+        return Plan(key, path, desired, "replace", existing, mode)
+    return Plan(key, path, desired, "conflict", existing, mode)
 
 
 def observe_state(path: pathlib.Path) -> StateObservation:
@@ -105,16 +114,29 @@ def write_state(path: pathlib.Path, targets: dict[str, str]) -> None:
     replace(path, content.encode())
 
 
-def backup(path: pathlib.Path, content: bytes) -> pathlib.Path:
+def backup(path: pathlib.Path, content: bytes, *, mode: int = 0o600) -> pathlib.Path:
+    created: pathlib.Path | None = None
     try:
         digest = hashlib.sha256(content).hexdigest()[:12]
         base = path.with_name(f"{path.name}.impstack-backup.{digest}")
         candidate = base
         counter = 1
-        while candidate.exists():
-            candidate = pathlib.Path(f"{base}.{counter}")
-            counter += 1
-        candidate.write_bytes(content)
+        while True:
+            try:
+                descriptor = os.open(
+                    candidate,
+                    os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+                    mode,
+                )
+            except FileExistsError:
+                candidate = pathlib.Path(f"{base}.{counter}")
+                counter += 1
+            else:
+                created = candidate
+                break
+        with os.fdopen(descriptor, "wb") as output:
+            os.fchmod(output.fileno(), mode)
+            output.write(content)
         older_backups = sorted(
             (item for item in path.parent.glob(f"{path.name}.impstack-backup.*") if item != candidate),
             key=lambda item: (item.stat().st_mtime_ns, item.name),
@@ -125,6 +147,11 @@ def backup(path: pathlib.Path, content: bytes) -> pathlib.Path:
             print(f"removed old backup: {expired}")
         return candidate
     except OSError as error:
+        if created is not None:
+            try:
+                created.unlink(missing_ok=True)
+            except OSError:
+                pass
         raise filesystem_error(path, error) from None
 
 
@@ -136,7 +163,7 @@ def show_diff(path: pathlib.Path, existing: bytes, desired: bytes) -> None:
     )
 
 
-def stage(path: pathlib.Path, content: bytes) -> pathlib.Path:
+def stage(path: pathlib.Path, content: bytes, *, mode: int = 0o600) -> pathlib.Path:
     temporary: pathlib.Path | None = None
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -144,6 +171,7 @@ def stage(path: pathlib.Path, content: bytes) -> pathlib.Path:
             dir=path.parent, prefix=f".{path.name}.", delete=False
         ) as output:
             temporary = pathlib.Path(output.name)
+            os.fchmod(output.fileno(), mode)
             output.write(content)
         return temporary
     except OSError as error:
@@ -162,8 +190,8 @@ def commit(temporary: pathlib.Path, path: pathlib.Path) -> None:
         raise filesystem_error(path, error) from None
 
 
-def replace(path: pathlib.Path, content: bytes) -> None:
-    temporary = stage(path, content)
+def replace(path: pathlib.Path, content: bytes, *, mode: int = 0o600) -> None:
+    temporary = stage(path, content, mode=mode)
     try:
         commit(temporary, path)
     finally:
@@ -176,7 +204,7 @@ def replace(path: pathlib.Path, content: bytes) -> None:
 def protect(plan: Plan) -> ProtectedPlan:
     if plan.action == "noop" or plan.existing is None:
         return ProtectedPlan(plan, None)
-    saved = backup(plan.path, plan.existing)
+    saved = backup(plan.path, plan.existing, mode=plan.mode)
     print(f"backup: {saved}")
     return ProtectedPlan(plan, saved)
 
@@ -185,7 +213,7 @@ def stage_replacement(protected: ProtectedPlan) -> pathlib.Path:
     plan = protected.plan
     assert plan.action != "noop"
     assert plan.existing is None or protected.backup_path is not None
-    return stage(plan.path, plan.desired)
+    return stage(plan.path, plan.desired, mode=plan.mode)
 
 
 def main(argv: list[str]) -> int:

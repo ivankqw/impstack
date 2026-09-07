@@ -926,11 +926,21 @@ def _load_wizard_template(path: pathlib.Path) -> str:
 
 def _artifact_plan(artifact: Artifact) -> managed.Plan:
     plan = managed.classify(
-        artifact.key, artifact.path, artifact.content, artifact.content, None
+        artifact.key,
+        artifact.path,
+        artifact.content,
+        artifact.content,
+        None,
+        mode=artifact.mode,
     )
     if plan.action == "noop" and artifact.path.stat().st_mode & 0o777 != artifact.mode:
         return managed.Plan(
-            plan.key, plan.path, plan.desired, "replace", plan.existing
+            plan.key,
+            plan.path,
+            plan.desired,
+            "replace",
+            plan.existing,
+            plan.mode,
         )
     return plan
 
@@ -952,25 +962,17 @@ def _write_artifacts(artifacts: Sequence[Artifact], force: bool) -> None:
     if any(_stale_stage_exists(artifact.path) for artifact in artifacts):
         raise ValueError("stale managed artifact staging file; remove it and retry")
     plans = tuple(_artifact_plan(artifact) for artifact in artifacts)
-    previous_umask = os.umask(0o077)
-    try:
-        with contextlib.redirect_stdout(io.StringIO()):
-            protected = tuple(managed.protect(plan) for plan in plans)
-    finally:
-        os.umask(previous_umask)
-    for artifact, protected_plan in zip(artifacts, protected, strict=True):
-        if protected_plan.backup_path is not None:
-            protected_plan.backup_path.chmod(artifact.mode)
+    with contextlib.redirect_stdout(io.StringIO()):
+        protected = tuple(managed.protect(plan) for plan in plans)
     conflicts = tuple(plan for plan in plans if plan.action == "conflict")
     if conflicts and not force:
         raise ValueError("managed artifact conflict; rerun with --force")
     staged: list[tuple[managed.ProtectedPlan, pathlib.Path]] = []
     try:
-        for artifact, protected_plan in zip(artifacts, protected, strict=True):
+        for protected_plan in protected:
             if protected_plan.plan.action == "noop":
                 continue
             temporary = managed.stage_replacement(protected_plan)
-            temporary.chmod(artifact.mode)
             staged.append((protected_plan, temporary))
         for protected_plan, temporary in staged:
             managed.commit(temporary, protected_plan.plan.path)
