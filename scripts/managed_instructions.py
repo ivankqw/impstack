@@ -53,6 +53,21 @@ def state_diagnostic(path: pathlib.Path, detail: str) -> str:
     return f"could not read instruction state: {path}: {detail}; remove or repair this file"
 
 
+def user_state_path(value: str | pathlib.Path, home: pathlib.Path) -> pathlib.Path:
+    configured = pathlib.Path(value)
+    relative = not configured.is_absolute()
+    if configured.parts and configured.parts[0] == "~":
+        path = home.joinpath(*configured.parts[1:])
+    else:
+        path = configured.expanduser()
+    if not path.is_absolute():
+        path = home / path
+    resolved = path.resolve()
+    if relative and not resolved.is_relative_to(home):
+        raise ValueError("relative user-state path escapes home")
+    return resolved
+
+
 def preflight_staging(paths: Sequence[pathlib.Path]) -> None:
     for path in paths:
         if not path.parent.is_dir():
@@ -239,10 +254,11 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--force", action="store_true")
     args = parser.parse_args(argv)
     home = args.home.resolve()
-    state_root = pathlib.Path(os.environ.get("XDG_STATE_HOME", home / ".local/state")).expanduser()
-    if not state_root.is_absolute():
-        state_root = home / state_root
-    state_path = state_root.resolve() / "impstack" / "instructions.json"
+    state_root = user_state_path(
+        os.environ.get("XDG_STATE_HOME") or home / ".local/state",
+        home,
+    )
+    state_path = state_root / "impstack" / "instructions.json"
     observation = observe_state(state_path)
     recorded = observation.recorded.copy()
 
@@ -318,7 +334,7 @@ def main(argv: list[str]) -> int:
 if __name__ == "__main__":
     try:
         exit_code = main(sys.argv[1:])
-    except InstructionFilesystemError as error:
+    except (InstructionFilesystemError, ValueError) as error:
         print(f"error: {error}", file=sys.stderr)
         exit_code = 1
     raise SystemExit(exit_code)

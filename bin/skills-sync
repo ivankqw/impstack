@@ -46,10 +46,18 @@ class SkillStatePaths:
 
 
 def user_state_path(value: str | pathlib.Path, home: pathlib.Path) -> pathlib.Path:
-    path = pathlib.Path(value).expanduser()
+    configured = pathlib.Path(value)
+    relative = not configured.is_absolute()
+    if configured.parts and configured.parts[0] == "~":
+        path = home.joinpath(*configured.parts[1:])
+    else:
+        path = configured.expanduser()
     if not path.is_absolute():
         path = home / path
-    return path.resolve()
+    resolved = path.resolve()
+    if relative and not resolved.is_relative_to(home):
+        raise ValueError("relative user-state path escapes home")
+    return resolved
 
 
 def skill_state_paths() -> SkillStatePaths:

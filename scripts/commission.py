@@ -977,16 +977,28 @@ def _write_artifacts(artifacts: Sequence[Artifact], force: bool) -> None:
             temporary.unlink(missing_ok=True)
 
 
+def _user_state_path(value: str, home: pathlib.Path) -> pathlib.Path:
+    configured = pathlib.Path(value)
+    relative = not configured.is_absolute()
+    if configured.parts and configured.parts[0] == "~":
+        path = home.joinpath(*configured.parts[1:])
+    else:
+        path = configured.expanduser()
+    if not path.is_absolute():
+        path = home / path
+    resolved = path.resolve()
+    if relative and not resolved.is_relative_to(home):
+        raise ValueError("relative user-state path escapes home")
+    return resolved
+
+
 def _context(args: argparse.Namespace, outside_project: pathlib.Path) -> Context:
     home = args.home.resolve()
     environment = dict(os.environ)
     for name in ("SHARED_SKILLS", "XDG_STATE_HOME"):
         raw_path = environment.get(name)
         if raw_path:
-            path = pathlib.Path(raw_path).expanduser()
-            if not path.is_absolute():
-                path = home / path
-            environment[name] = str(path.resolve())
+            environment[name] = str(_user_state_path(raw_path, home))
         elif raw_path == "":
             environment.pop(name)
     return Context(args.repo.resolve(), home, environment, outside_project.resolve())
