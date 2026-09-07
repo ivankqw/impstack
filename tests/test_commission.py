@@ -636,6 +636,10 @@ class CommissionTests(unittest.TestCase):
         self.assertEqual(wizard.read_text(), "keep wizard\n")
         self.assertEqual(len(tuple(self.sandbox.glob("record.md.impstack-backup.*"))), 1)
         self.assertEqual(len(tuple(self.sandbox.glob("wizard.sh.impstack-backup.*"))), 1)
+        record_backup = next(self.sandbox.glob("record.md.impstack-backup.*"))
+        wizard_backup = next(self.sandbox.glob("wizard.sh.impstack-backup.*"))
+        self.assertEqual(record_backup.stat().st_mode & 0o777, 0o600)
+        self.assertEqual(wizard_backup.stat().st_mode & 0o777, 0o700)
         self.assertIn("--force", result.stderr)
 
     def test_probe_force_replaces_backed_up_artifacts(self) -> None:
