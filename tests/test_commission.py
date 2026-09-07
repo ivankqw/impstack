@@ -75,7 +75,7 @@ class CommissionTests(unittest.TestCase):
             + textwrap.dedent(
                 """\
                 case "${1:-}" in
-                  resolve-shared) printf '%s\\n' "$SHARED_SKILLS" ;;
+                  resolve-shared) printf '%s\\n' "${SHARED_SKILLS:-$HOME/.agents/skills}" ;;
                   resolve-node) command -v node ;;
                   resolve-npx) command -v npx ;;
                   check) printf 'catalog valid\\n' ;;
@@ -857,6 +857,18 @@ class CommissionTests(unittest.TestCase):
         self.assertFalse((self.repo / relative).exists())
         self.assertEqual(
             len(tuple((self.home / relative).glob("machine-*/SKILL.md"))),
+            1,
+        )
+
+    def test_probe_treats_empty_shared_skills_as_unset(self) -> None:
+        result = self.run_commission(
+            "probe",
+            env=self.environment(SHARED_SKILLS=""),
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        self.assertEqual(
+            len(tuple((self.home / ".agents/skills").glob("machine-*/SKILL.md"))),
             1,
         )
 

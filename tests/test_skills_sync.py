@@ -760,6 +760,18 @@ class SkillsSyncTests(unittest.TestCase):
         self.assertIn(str(expected_shared), schedule.stdout)
         self.assertIn(str(expected_lock), schedule.stdout)
 
+        empty_shared = self.run_cli(
+            repo,
+            home,
+            "resolve-shared",
+            path=str(fakebin),
+            env_overrides={"SHARED_SKILLS": ""},
+        )
+        self.assertEqual(
+            empty_shared.stdout.strip(),
+            str(home / ".agents/skills"),
+        )
+
     def test_relative_xdg_state_home_uses_one_resolved_path(self) -> None:
         _, home = self.make_home()
         repo = pathlib.Path(tempfile.mkdtemp())
