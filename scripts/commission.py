@@ -977,9 +977,17 @@ def _write_artifacts(artifacts: Sequence[Artifact], force: bool) -> None:
 
 
 def _context(args: argparse.Namespace, outside_project: pathlib.Path) -> Context:
-    return Context(
-        args.repo.resolve(), args.home.resolve(), dict(os.environ), outside_project.resolve()
-    )
+    home = args.home.resolve()
+    environment = dict(os.environ)
+    raw_xdg = environment.get("XDG_STATE_HOME")
+    if raw_xdg:
+        xdg_state_home = pathlib.Path(raw_xdg).expanduser()
+        if not xdg_state_home.is_absolute():
+            xdg_state_home = home / xdg_state_home
+        environment["XDG_STATE_HOME"] = str(xdg_state_home.resolve())
+    elif raw_xdg == "":
+        environment.pop("XDG_STATE_HOME")
+    return Context(args.repo.resolve(), home, environment, outside_project.resolve())
 
 
 def _common(parser: argparse.ArgumentParser) -> None:
