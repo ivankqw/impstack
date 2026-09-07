@@ -477,7 +477,7 @@ if [ -z "$action" ]; then
       run_install_step "$entry"
     fi
   done
-  echo "== done. Merge the settings templates by hand."
+  echo "== install steps complete. Review any warnings above, then run the harness canaries."
   exit "$deferred_status"
 else
   if [ "$action" != "preflight" ]; then
