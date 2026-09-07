@@ -195,8 +195,11 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--private", type=pathlib.Path, required=True)
     parser.add_argument("--force", action="store_true")
     args = parser.parse_args(argv)
-    state_root = pathlib.Path(os.environ.get("XDG_STATE_HOME", args.home / ".local/state"))
-    state_path = state_root.expanduser().resolve() / "impstack" / "instructions.json"
+    home = args.home.resolve()
+    state_root = pathlib.Path(os.environ.get("XDG_STATE_HOME", home / ".local/state")).expanduser()
+    if not state_root.is_absolute():
+        state_root = home / state_root
+    state_path = state_root.resolve() / "impstack" / "instructions.json"
     observation = observe_state(state_path)
     recorded = observation.recorded.copy()
 
@@ -215,14 +218,14 @@ def main(argv: list[str]) -> int:
     plans = (
         classify(
             ".claude/CLAUDE.md",
-            args.home / ".claude/CLAUDE.md",
+            home / ".claude/CLAUDE.md",
             rendered(claude_body),
             claude_body,
             recorded.get(".claude/CLAUDE.md"),
         ),
         classify(
             "AGENTS.md",
-            args.home / "AGENTS.md",
+            home / "AGENTS.md",
             rendered(codex_body),
             old_codex,
             recorded.get("AGENTS.md"),
