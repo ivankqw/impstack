@@ -467,6 +467,23 @@ class CommissionTests(unittest.TestCase):
         self.assertNotIn('stage "Claude login"', wizard_text)
         self.assertTrue(os.access(wizard, os.X_OK))
 
+    def test_probe_chooses_record_path_with_its_machine_name(self) -> None:
+        result = self.run_commission("probe")
+
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        prefix = "record wrote "
+        record_line = next(
+            line for line in result.stdout.splitlines() if line.startswith(prefix)
+        )
+        record = pathlib.Path(record_line.removeprefix(prefix))
+        skill_name = next(
+            line.removeprefix("name: ")
+            for line in record.read_text().splitlines()
+            if line.startswith("name: ")
+        )
+        self.assertEqual(record.parent.name, skill_name)
+        self.assertEqual(record.name, "SKILL.md")
+
     def test_executor_url_value_never_appears_in_output_or_record(self) -> None:
         secret_url = "https://secret-tenant.invalid/mcp"
         record = self.sandbox / "record.md"
