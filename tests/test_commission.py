@@ -629,6 +629,20 @@ class CommissionTests(unittest.TestCase):
         self.assertEqual(record.parent.name, skill_name)
         self.assertEqual(record.name, "SKILL.md")
 
+    def test_custom_shared_path_is_not_printed(self) -> None:
+        sentinel = "s3nt1nel-private-path-814"
+        shared = self.sandbox / sentinel / "skills"
+
+        result = self.run_commission(
+            "probe", env=self.environment(SHARED_SKILLS=str(shared))
+        )
+
+        records = tuple(shared.glob("machine-*/SKILL.md"))
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        self.assertEqual(len(records), 1)
+        self.assertNotIn(sentinel, result.stdout + result.stderr + records[0].read_text())
+        self.assertIn("record wrote custom", result.stdout)
+
     def test_executor_url_value_never_appears_in_output_or_record(self) -> None:
         secret_url = "https://secret-tenant.invalid/mcp"
         record = self.sandbox / "record.md"
