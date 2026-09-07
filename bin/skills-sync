@@ -482,11 +482,18 @@ def install_missing(root: pathlib.Path) -> int:
                 env=env,
             )
         except subprocess.CalledProcessError as error:
-            failures.append(name)
-            print(
-                f"failed to install skill: {name} (exit {error.returncode})",
-                file=sys.stderr,
-            )
+            installed = shared / name / "SKILL.md"
+            if installed.is_file():
+                print(
+                    f"installed skill despite installer exit {error.returncode}: {name}",
+                    file=sys.stderr,
+                )
+            else:
+                failures.append(name)
+                print(
+                    f"failed to install skill: {name} (exit {error.returncode})",
+                    file=sys.stderr,
+                )
     if failures:
         noun = "skill" if len(failures) == 1 else "skills"
         print(

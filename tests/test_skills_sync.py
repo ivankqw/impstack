@@ -624,6 +624,30 @@ class SkillsSyncTests(unittest.TestCase):
         self.assertTrue((home / ".agents" / "skills" / "gamma" / "SKILL.md").is_file())
         self.assertIn("failed to install 1 skill: beta", result.stderr)
 
+    def test_install_missing_accepts_a_written_skill_after_cli_failure(self) -> None:
+        _, home = self.make_home()
+        repo = pathlib.Path(tempfile.mkdtemp())
+        self.addCleanup(lambda: shutil.rmtree(repo))
+        fakebin = pathlib.Path(tempfile.mkdtemp())
+        self.addCleanup(lambda: shutil.rmtree(fakebin))
+        self.write_catalog(repo, {"alpha": self.skill_entry("alpha")})
+        npx = fakebin / "npx"
+        npx.write_text(
+            "#!/usr/bin/env bash\n"
+            "mkdir -p \"$HOME/.agents/skills/alpha\"\n"
+            "printf '%s\\n' '---' 'name: alpha' 'description: test' '---' "
+            "> \"$HOME/.agents/skills/alpha/SKILL.md\"\n"
+            "exit 23\n"
+        )
+        npx.chmod(0o755)
+
+        result = self.run_cli(
+            repo, home, "install-missing", path=f"{fakebin}:/usr/bin:/bin"
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        self.assertIn("installed skill despite installer exit 23: alpha", result.stderr)
+
     def test_install_missing_rejects_option_like_catalog_source(self) -> None:
         _, home = self.make_home()
         repo = pathlib.Path(tempfile.mkdtemp())
