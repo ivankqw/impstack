@@ -987,7 +987,7 @@ def _context(args: argparse.Namespace, outside_project: pathlib.Path) -> Context
             if not path.is_absolute():
                 path = home / path
             environment[name] = str(path.resolve())
-        elif name == "XDG_STATE_HOME" and raw_path == "":
+        elif raw_path == "":
             environment.pop(name)
     return Context(args.repo.resolve(), home, environment, outside_project.resolve())
 

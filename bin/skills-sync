@@ -57,7 +57,7 @@ def skill_state_paths() -> SkillStatePaths:
     raw_xdg = os.environ.get("XDG_STATE_HOME")
     xdg_state_home = user_state_path(raw_xdg, home) if raw_xdg else None
     shared = user_state_path(
-        os.environ.get("SHARED_SKILLS", home / ".agents" / "skills"), home
+        os.environ.get("SHARED_SKILLS") or home / ".agents" / "skills", home
     )
     native_lock = (
         xdg_state_home / "skills" / ".skill-lock.json"
