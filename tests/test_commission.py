@@ -822,9 +822,17 @@ class CommissionTests(unittest.TestCase):
             ]
         }
         redacted = commission_module._redact_structured(nested)
+        with mock.patch.object(
+            commission_module,
+            "_redact_structured",
+            wraps=commission_module._redact_structured,
+        ) as structured_redactor:
+            nested_output = commission_module._safe_output(json.dumps(nested), "inventory")
 
         self.assertNotIn(sentinel, flat)
         self.assertNotIn(sentinel, json.dumps(redacted))
+        self.assertNotIn(sentinel, nested_output)
+        self.assertEqual(structured_redactor.call_args_list[0], mock.call(nested))
         self.assertEqual(
             flat,
             '{"session_token": <redacted>, "authorization": "Bearer <redacted>"}',
