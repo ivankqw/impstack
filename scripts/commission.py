@@ -2,8 +2,10 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import dataclasses
 import enum
+import io
 import json
 import os
 import pathlib
@@ -936,14 +938,14 @@ def _write_artifacts(artifacts: Sequence[Artifact], force: bool) -> None:
     if len(set(paths)) != len(paths):
         raise ValueError("record and wizard paths must differ")
     plans = tuple(_artifact_plan(artifact) for artifact in artifacts)
-    protected = tuple(managed.protect(plan) for plan in plans)
+    with contextlib.redirect_stdout(io.StringIO()):
+        protected = tuple(managed.protect(plan) for plan in plans)
     for artifact, protected_plan in zip(artifacts, protected, strict=True):
         if protected_plan.backup_path is not None:
             protected_plan.backup_path.chmod(artifact.mode)
     conflicts = tuple(plan for plan in plans if plan.action == "conflict")
     if conflicts and not force:
-        paths_text = ", ".join(str(plan.path) for plan in conflicts)
-        raise ValueError(f"managed artifact conflict: {paths_text}; rerun with --force")
+        raise ValueError("managed artifact conflict; rerun with --force")
     staged: list[tuple[managed.ProtectedPlan, pathlib.Path]] = []
     try:
         for artifact, protected_plan in zip(artifacts, protected, strict=True):
@@ -1026,9 +1028,21 @@ def main(argv: Sequence[str]) -> int:
                 )
             )
             _write_artifacts(artifacts, args.force)
-            print(f"record wrote {record_path}")
+            default_record = home / ".agents" / "skills" / _machine_name() / "SKILL.md"
+            record_label = _selected_path(
+                record_path,
+                {default_record: f"$HOME/.agents/skills/{_machine_name()}/SKILL.md"},
+                "custom",
+            )
+            print(f"record wrote {record_label}")
             if wizard_path:
-                print(f"wizard wrote {wizard_path}")
+                default_wizard = home / ".config" / "impstack" / "commission-wizard.sh"
+                wizard_label = _selected_path(
+                    wizard_path,
+                    {default_wizard: "$HOME/.config/impstack/commission-wizard.sh"},
+                    "custom",
+                )
+                print(f"wizard wrote {wizard_label}")
         return 1 if report.failed else 0
     except (json.JSONDecodeError, OSError, ValueError) as error:
         print(f"error: {error}", file=sys.stderr)

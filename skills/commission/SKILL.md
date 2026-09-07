@@ -13,7 +13,8 @@ Probe the current machine. Write one global machine skill from observed results.
 2. Run `bin/commission check --repo "$IMPSTACK_DIR" --home "$HOME" --format text`.
 3. Set the wizard path to `$HOME/.config/impstack/commission-wizard.sh`.
 4. Run `bin/commission probe --repo "$IMPSTACK_DIR" --home "$HOME" --wizard <wizard-path>`.
-5. Read the generated record path from the command output.
+5. Read the generated record path from the command output. Expand `$HOME` locally.
+6. If the output says `custom`, resolve the shared root locally. Do not report that root.
 
 The probe runs the fixed assertion registry in `commission.contract.json`. It records every status and exact command. The `proof.install-bin` assertion is the required real proof lane.
 

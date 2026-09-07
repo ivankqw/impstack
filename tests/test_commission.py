@@ -620,7 +620,9 @@ class CommissionTests(unittest.TestCase):
         record_line = next(
             line for line in result.stdout.splitlines() if line.startswith(prefix)
         )
-        record = pathlib.Path(record_line.removeprefix(prefix))
+        records = tuple((self.home / ".agents" / "skills").glob("machine-*/SKILL.md"))
+        self.assertEqual(len(records), 1)
+        record = records[0]
         skill_name = next(
             line.removeprefix("name: ")
             for line in record.read_text().splitlines()
@@ -628,6 +630,10 @@ class CommissionTests(unittest.TestCase):
         )
         self.assertEqual(record.parent.name, skill_name)
         self.assertEqual(record.name, "SKILL.md")
+        self.assertEqual(
+            record_line,
+            f"record wrote $HOME/.agents/skills/{record.parent.name}/SKILL.md",
+        )
 
     def test_custom_shared_path_is_not_printed(self) -> None:
         sentinel = "s3nt1nel-private-path-814"
