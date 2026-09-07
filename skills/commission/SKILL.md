@@ -11,10 +11,9 @@ Probe the current machine. Write one global machine skill from observed results.
 
 1. Locate the impstack repository. Use `~/impstack` unless `IMPSTACK_DIR` names another path.
 2. Run `bin/commission check --repo "$IMPSTACK_DIR" --home "$HOME" --format text`.
-3. Resolve the shared skill directory with `bin/skills-sync resolve-shared`.
-4. Set the record path to `<shared-skills>/machine-<hostname>/SKILL.md`.
-5. Set the wizard path to `$HOME/.config/impstack/commission-wizard.sh`.
-6. Run `bin/commission probe --repo "$IMPSTACK_DIR" --home "$HOME" --record <record-path> --wizard <wizard-path>`.
+3. Set the wizard path to `$HOME/.config/impstack/commission-wizard.sh`.
+4. Run `bin/commission probe --repo "$IMPSTACK_DIR" --home "$HOME" --wizard <wizard-path>`.
+5. Read the generated record path from the command output.
 
 The probe runs the fixed assertion registry in `commission.contract.json`. It records every status and exact command. The `proof.install-bin` assertion is the required real proof lane.
 

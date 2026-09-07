@@ -566,10 +566,22 @@ def _executable_path(value: str | None, command: str) -> str:
     )
 
 
+def _machine_name() -> str:
+    hostname = re.sub(r"[^a-z0-9-]+", "-", socket.gethostname().lower()).strip("-")
+    return f"machine-{hostname or 'unknown'}"
+
+
+def _machine_record_path(report: Report) -> pathlib.Path:
+    shared = _runtime_value(report, "skills.shared-path")
+    if shared is None:
+        raise ValueError("skills.shared-path must pass before record generation")
+    return pathlib.Path(shared) / _machine_name() / "SKILL.md"
+
+
 def _machine_record(
     report: Report, context: Context, wizard_path: pathlib.Path | None
 ) -> MachineRecord:
-    hostname = re.sub(r"[^a-z0-9-]+", "-", socket.gethostname().lower()).strip("-") or "unknown"
+    machine_name = _machine_name()
     container = pathlib.Path("/.dockerenv").exists() or pathlib.Path("/run/.containerenv").exists()
     system = platform.system()
     os_name = system if system in {"Linux", "Darwin", "Windows"} else "other"
@@ -649,7 +661,7 @@ def _machine_record(
         )
         remediations.append(RemediationRecord(result.assertion_id, text))
     return MachineRecord(
-        hostname=hostname,
+        hostname=machine_name.removeprefix("machine-"),
         os_name=os_name,
         os_version=_selected_version(platform.release()),
         container=container,
@@ -881,7 +893,7 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     check.add_argument("--format", choices=("text", "json"), default="text")
     probe = subparsers.add_parser("probe")
     _common(probe)
-    probe.add_argument("--record", type=pathlib.Path, required=True)
+    probe.add_argument("--record", type=pathlib.Path)
     probe.add_argument("--wizard", type=pathlib.Path)
     probe.add_argument("--force", action="store_true")
     return parser.parse_args(argv)
@@ -904,6 +916,7 @@ def main(argv: Sequence[str]) -> int:
             sys.stdout.write(render_report(report, args.format))
         else:
             wizard_path = args.wizard
+            record_path = args.record or _machine_record_path(report)
             artifacts: list[Artifact] = []
             if wizard_path:
                 shared_result = _result(report, "skills.shared-path")
@@ -921,13 +934,13 @@ def main(argv: Sequence[str]) -> int:
             artifacts.append(
                 Artifact(
                     "record",
-                    args.record,
+                    record_path,
                     render_record(_machine_record(report, context, wizard_path)).encode(),
                     0o600,
                 )
             )
             _write_artifacts(artifacts, args.force)
-            print(f"record wrote {args.record}")
+            print(f"record wrote {record_path}")
             if wizard_path:
                 print(f"wizard wrote {wizard_path}")
         return 1 if report.failed else 0
