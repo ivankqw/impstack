@@ -938,8 +938,12 @@ def _write_artifacts(artifacts: Sequence[Artifact], force: bool) -> None:
     if len(set(paths)) != len(paths):
         raise ValueError("record and wizard paths must differ")
     plans = tuple(_artifact_plan(artifact) for artifact in artifacts)
-    with contextlib.redirect_stdout(io.StringIO()):
-        protected = tuple(managed.protect(plan) for plan in plans)
+    previous_umask = os.umask(0o077)
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            protected = tuple(managed.protect(plan) for plan in plans)
+    finally:
+        os.umask(previous_umask)
     for artifact, protected_plan in zip(artifacts, protected, strict=True):
         if protected_plan.backup_path is not None:
             protected_plan.backup_path.chmod(artifact.mode)
