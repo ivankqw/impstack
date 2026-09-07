@@ -815,6 +815,37 @@ class SkillMetadataTest(unittest.TestCase):
             assert protected.backup_path is not None
             self.assertEqual(protected.backup_path.stat().st_mode & 0o777, 0o600)
 
+    def test_instruction_noop_repairs_public_mode(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = pathlib.Path(temp)
+            home, env = self.create_valid_install_fixture(root)
+            command = [str(ROOT / "install.sh"), "instructions"]
+            first = subprocess.run(
+                command,
+                cwd=ROOT,
+                env=env,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(first.returncode, 0, first.stderr + first.stdout)
+            target = home / "AGENTS.md"
+            content = target.read_bytes()
+            target.chmod(0o644)
+
+            result = subprocess.run(
+                command,
+                cwd=ROOT,
+                env=env,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+            self.assertEqual(target.read_bytes(), content)
+            self.assertEqual(target.stat().st_mode & 0o777, 0o600)
+
     def test_instruction_preflight_rejects_stale_staging_files(self) -> None:
         for case in ("instruction", "state"):
             with self.subTest(case=case), tempfile.TemporaryDirectory() as temp:
