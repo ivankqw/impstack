@@ -59,6 +59,7 @@ class Assertion:
     absent_registration_reason: str | None
     absent_registration_exit_codes: tuple[int, ...]
     absent_registration_requires_missing_stdout: bool
+    absent_registration_stderr_contains: str | None
 
 
 @dataclasses.dataclass(frozen=True)
@@ -244,16 +245,26 @@ def load_contract(path: pathlib.Path) -> tuple[Assertion, ...]:
         absent_reason: str | None = None
         absent_exit_codes: tuple[int, ...] = ()
         absent_requires_missing_stdout = False
+        absent_stderr_contains: str | None = None
         if absent_registration is not None:
             absent = _expect_mapping(absent_registration, f"{assertion_id}.absent_registration")
             raw_exit_codes = absent.get("exit_codes")
             absent_requires_missing_stdout = absent.get("requires_missing_stdout") is True
+            absent_stderr_contains = absent.get("stderr_contains")
             if (
                 absent.get("status") != Status.NOT_APPLICABLE.value
                 or not isinstance(absent.get("reason"), str)
                 or not isinstance(raw_exit_codes, list)
                 or not raw_exit_codes
                 or not all(isinstance(code, int) for code in raw_exit_codes)
+                or (
+                    absent_stderr_contains is not None
+                    and not isinstance(absent_stderr_contains, str)
+                )
+                or not (
+                    absent_requires_missing_stdout
+                    or isinstance(absent_stderr_contains, str)
+                )
             ):
                 raise ValueError(f"invalid absent registration: {assertion_id}")
             absent_reason = str(absent["reason"])
@@ -283,6 +294,7 @@ def load_contract(path: pathlib.Path) -> tuple[Assertion, ...]:
                 absent_registration_reason=absent_reason,
                 absent_registration_exit_codes=absent_exit_codes,
                 absent_registration_requires_missing_stdout=absent_requires_missing_stdout,
+                absent_registration_stderr_contains=absent_stderr_contains,
             )
         )
     return tuple(assertions)
@@ -415,6 +427,10 @@ def evaluate(assertions: Sequence[Assertion], context: Context) -> Report:
                     and assertion.stdout_contains not in evidence.stdout
                 )
             )
+            and (
+                assertion.absent_registration_stderr_contains is None
+                or assertion.absent_registration_stderr_contains in evidence.stderr
+            )
         )
         if absent_registration:
             status = Status.NOT_APPLICABLE
@@ -501,7 +517,7 @@ def _version(command: str, context: Context) -> str:
         return "not installed"
     assertion = Assertion(
         "inventory", "command", (), WorkingDirectory.REPO, (command, "--version"),
-        0, None, None, "command", "none", None, (Status.FAIL,), None, (), False,
+        0, None, None, "command", "none", None, (Status.FAIL,), None, (), False, None,
     )
     evidence = _run(assertion, context)
     return _selected_version(evidence.stdout or evidence.stderr)
