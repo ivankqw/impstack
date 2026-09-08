@@ -266,7 +266,7 @@ def resolve_node_tool(name: str) -> pathlib.Path:
         return pathlib.Path(from_path)
 
     home = pathlib.Path.home()
-    candidates: list[pathlib.Path] = []
+    candidates = [home / ".local" / "bin" / name]
     searched = [f"PATH={os.environ.get('PATH', '')}"]
     nvm_bin = os.environ.get("NVM_BIN")
     if nvm_bin:
