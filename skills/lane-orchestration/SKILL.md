@@ -41,7 +41,7 @@ the command changes.
 When the selected config permits Claude implementation lanes, run:
 
 ```bash
-herdr agent start <new-name> --kind claude --pane <pane-id> -- --model opus --effort medium --permission-mode acceptEdits
+herdr agent start <new-name> --kind claude --pane <pane-id> -- --model <config.model> --effort <config.effort> --permission-mode acceptEdits
 ```
 
 At the first Bash permission prompt, choose "switch to auto mode". Do not send stray keystrokes to

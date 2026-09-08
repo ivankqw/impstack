@@ -29,8 +29,7 @@ somewhere else, put it in the private layer.
 - Guessing an identifier is worse when it works. Discover it through the API.
   When a config declares no default, find out why.
 - Assert your anchors. Before editing by string replacement, check the pattern matches exactly once.
-- Measure the premise before a write pass: confirm the records or accounts the pass depends on exist
-  before you write.
+- Measure the premise before a write pass. Confirm that its required records or accounts exist.
 - A template is not a description of production. Diff live state against it before applying; to
   change one property, patch that property.
 
