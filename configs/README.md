@@ -19,11 +19,15 @@ only one vendor is available, use different model weights and require executed e
 | Config | Harness | Orchestrator | Implementer | Reviewer | Use it when |
 |---|---|---|---|---|---|
 | `default` | Claude Code | Claude Opus 5 | GPT-5.6 Sol in Herdr | Fresh Claude Sonnet 5 subagent | Claude Code is available. |
+| `claude-lanes` | Claude Code | Claude Opus 5 | Claude Opus 5 in Herdr | Fresh Claude Sonnet 5 subagent | Claude credits allow Opus lanes. |
 | `single-vendor` | Codex | GPT-5.6 Sol | GPT-5.6 Luna | GPT-5.6 Terra | Claude is unavailable. |
 
 The default path keeps implementation visible in Herdr panes. It gives each implementation task a
 fresh Codex context. Dispatch the reviewer as a fresh Sonnet subagent. Never use Opus for a Claude
 subagent.
+
+Use `claude-lanes` when the operator allows Opus implementation panes. Require each lane to push and
+open a draft pull request. Keep reviewers out of the shared checkout.
 
 Use `single-vendor` only as the no-Claude fallback. Its reviewer uses different Codex weights from
 the author and receives no shared context.

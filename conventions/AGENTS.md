@@ -5,21 +5,15 @@ somewhere else, put it in the private layer.
 
 ## Verification
 
-- State a number, metric, row count, or behaviour as fact only when you measured it yourself in this
-  session. Say where it came from.
-- Treat a figure a subagent reports as **unverified** until you re-measure it. Subagents explore and
-  critique. Numbers you act on, you re-derive.
-- Tag every number in a claim: `[measured: <command> -> <output>]`, `[sourced: <doc>]`, `[estimate]`,
-  or `[unverified]`. A virtue cannot be graded. A tag can be checked.
-- Tags go missing in the closing summary most of all; tag counts there too, and mark a projection
-  `[estimate]`.
-- Measure the thing, not its shadow. The absence of an error string proves nothing. Never read an
-  exit code through a pipe: `cmd | tail` reports the status of `tail`.
-- Run it bare or read `${PIPESTATUS[0]}`. Grepping can miss unpredicted failure wording.
+- State a number, metric, row count, or behaviour as fact only when you measured it yourself in this session. Say where it came from.
+- Treat a subagent's figure as **unverified** until you re-measure it.
+- Tag every number in a claim: `[measured: <command> -> <output>]`, `[sourced: <doc>]`, `[estimate]`, or `[unverified]`.
+- Tag counts in the closing summary. Mark projections `[estimate]`.
+- Measure the thing, not its shadow. Never read an exit code through a pipe: `cmd | tail` reports the status of `tail`.
+- Run it bare or read `${PIPESTATUS[0]}`.
 - Assert a property in a commit message or PR description only when you tested it. "Unverified, and
   here is what I could not prove" is a useful result.
-- Impact words such as "outage", "live", and "broken" need a measurement or `[unverified]` tag.
-- Override an instruction only when a measurement disproves its premise. Cite it and give the undo.
+- Measure impact claims. Override a rule only when a measurement disproves its premise.
 - After a crash or restart, ask every live process for its status.
 
 ## Calling code you did not write
@@ -28,15 +22,14 @@ somewhere else, put it in the private layer.
 - Guessing an identifier is worse when it works. Discover it through the API.
   When a config declares no default, find out why.
 - Assert your anchors. Before editing by string replacement, check the pattern matches exactly once.
+- Measure the premise before a write pass. One re-attribution pass needed seated users. The workspace had 13 `[sourced: operator incident]`.
 - A template is not a description of production. Diff live state against it before applying; to
   change one property, patch that property.
 
 ## Before you claim the work is done
 
-- Re-read your own diff line by line. List every behaviour you removed, tightened, or made stricter.
-  Rewrites break things far more often than new code does.
-- Name every downstream caller of each interface you changed, including callers outside this repo:
-  internal apps, pipelines, dashboards, MCP consumers. A change that is correct in-repo still breaks
+- Re-read your own diff line by line. List every behaviour you removed, tightened, or made stricter. Rewrites break things more often than new code.
+- Name every downstream caller of each interface you changed, including external callers. A change that is correct in-repo still breaks
   the caller you never opened.
 - Update each caller and tick it off a written list. Grep output is not an update.
 - Run the tests, paste the real output, then summarise.
@@ -97,9 +90,7 @@ unavailable. Keep its reviewer on a different Codex model from the author.
 Two lanes on the same fixed point. They overlap almost nowhere, so run both. Neither replaces the
 other.
 
-No diff exempts itself from a lane: "docs-only", "just a rename", "I already validated it" are the
-author grading their own work. A crash does not skip the gate either. Name any lane that did not
-run, and why. Stop a review loop out loud when a round has no independent signal left.
+No diff exempts itself from a lane. Name any lane that did not run, and why. Stop when a review round adds no independent signal.
 
 - **Defects and test quality.** Dispatch the `reviewer` reviewer as a new Sonnet agent that starts
   with no memory of this conversation. A mechanism that shares
@@ -108,6 +99,9 @@ run, and why. Stop a review loop out loud when a round has no independent signal
   Never tell it to skip what you already verified, because that is where a shared blind spot hides.
   Require it to run the tests and cite command plus output for anything it calls verified. A clean
   pass with cited evidence is a real result. Padding the findings is not.
+- Review in a throwaway worktree pinned to the reviewed SHA. Leave the shared checkout untouched.
+  One reviewer's unreverted probe removed a guard from an implementation lane.
+- Re-verify a fix by resuming the same reviewer with the new SHA. Make it rerun its probes.
 - **Standards and spec conformance.** A second pass over the same fixed point: does the diff follow
   this repo's documented standards, and does it do what the originating issue asked. Use the
   harness's standards-and-spec review command where one is configured; in Claude Code that is
@@ -121,6 +115,8 @@ run, and why. Stop a review loop out loud when a round has no independent signal
 - Run `git diff --check` and the project's own test command at minimum.
 - A test that has never failed proves nothing. Make it fail before trusting a green run: mutate the
   code or the input and watch it go red.
+- Mutate one layer at a time. Remove the app check alone, then the database constraint alone. A test
+  that fails only when both are absent proves neither layer.
 - Never edit files while a suite runs against them.
 - Before you measure, say what the broken world would show. A probe that reads the same either way
   proves nothing. This applies to browser probes, DOM reads and grep confirmations, not only
@@ -159,6 +155,11 @@ these as passes; the rules matter on their own.
 
 - Prefix branches `feat/`, `fix/`, `refactor/`, `docs/`, `chore/`. Never a personal prefix.
 - Open pull requests as drafts.
+- A lane is done only after it pushes the branch and opens the draft pull request. Require a
+  one-line pull-request URL sentinel file. A report alone is incomplete.
+- Monitor report and sentinel files with a persistent monitor. Shell sleep loops die with sessions.
+- Run commands beyond the harness timeout detached. Write their output to a log file.
+- Parallel schema revisions collide. The second lane to merge renumbers its revision and rebases.
 - Before pushing, check `git status --short --branch`, keep commits focused, leave no temp files, and
   rebase on the default branch if you have drifted.
 - PR body sections: copy the repo's PR template headings exactly; CI can gate on the text. With no

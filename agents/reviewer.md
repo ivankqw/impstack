@@ -37,6 +37,9 @@ changed code.
 
 ## Run things
 
+Create a throwaway worktree at the reviewed SHA. Leave the shared checkout untouched. Revert every
+probe before you finish. End with an empty `git status --short` output.
+
 Execute the tests, the build, the linter, the greps. Cite the command and the relevant output for
 anything you mark verified. Tool output is evidence that does not depend on anyone's judgement,
 including yours. Where the reviewer and the author share a model family, execution is the only real
