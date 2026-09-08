@@ -9,9 +9,9 @@ somewhere else, put it in the private layer.
   session. Say where it came from.
 - Treat a figure a subagent reports as **unverified** until you re-measure it. Subagents explore and
   critique. Numbers you act on, you re-derive.
-- Tag every number in a claim: `[measured: <command> -> <output>]`, `[sourced: <doc>]`, `[estimate]`,
-  or `[unverified]`. A virtue cannot be graded. A tag can be checked.
-- Use `[observed: <date> <who>]` for a one-off observation that a document cannot reproduce.
+- Tag every number in a claim: `[measured: <command> -> <output>]`, `[sourced: <doc>]`,
+  `[observed: <date> <who>]`, `[estimate]`, or `[unverified]`. Use `[observed]` for a one-off
+  observation that a document cannot reproduce. A virtue cannot be graded. A tag can be checked.
 - Tags go missing in the closing summary most of all; tag counts there too, and mark a projection
   `[estimate]`.
 - Measure the thing, not its shadow. The absence of an error string proves nothing. Never read an
