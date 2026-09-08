@@ -40,6 +40,8 @@ flowchart LR
     RE --> OP["Operator<br/>hand-off point<br/>explanation gates<br/>planned"]
     HA["Harness<br/>Claude Code or Codex<br/>Hermes experimental"] -. runs .-> HE
     EX["Executor<br/>agent-connection catalogue"] -. supplies tools .-> HE
+    WB["Web tooling<br/>chrome-devtools-mcp"] -. supplies browser access .-> HE
+    MO["Report monitors<br/>sentinel watchers"] -. observes completion .-> HE
     SK["Skills<br/>method cards<br/>pstack + Matt Pocock"] -. guide .-> HE
 ```
 
@@ -54,6 +56,8 @@ flowchart LR
 | Return control at junctions | Hand-off point | Operator explanation gates, planned | Fixed | Private layer |
 | Choose the runtime per environment | Supporting layer: harness | Claude Code or Codex; Hermes is experimental `[unverified]` | Flexible | [`configs/`](configs/), [`settings/`](settings/), and the private layer |
 | Carry one tool catalogue | Supporting layer: agent connections | Executor Cloud through MCP | Fixed | [`mcp/servers.json`](mcp/servers.json) |
+| Give lanes browser access | Supporting layer: web tooling | `chrome-devtools-mcp` | Flexible | [`skills/browser-tooling/`](skills/browser-tooling/) |
+| Observe lane completion | Supporting layer: report monitors | Report and pull-request sentinel watchers | Fixed | [`skills/lane-orchestration/`](skills/lane-orchestration/) |
 | Load the method when needed | Supporting layer: skills | pstack and Matt Pocock's skills | Fixed | [`pstack-revision.txt`](pstack-revision.txt), [`bootstrap.sh`](bootstrap.sh), and [`skills-catalog.json`](skills-catalog.json) |
 
 ## usage
@@ -88,6 +92,8 @@ I write a skill when no upstream skill covers the job.
 | [`cleanup-crew`](skills/cleanup-crew/SKILL.md) | Keep the issue tracker aligned with current work. |
 | [`commission`](skills/commission/SKILL.md) | Probe a machine, check its fixed contract, and write its local record. |
 | [`dogfood-local`](skills/dogfood-local/SKILL.md) | Run a local app and verify the real user path. |
+| [`lane-orchestration`](skills/lane-orchestration/SKILL.md) | Run implementation lanes from briefs through review and cleanup. |
+| [`browser-tooling`](skills/browser-tooling/SKILL.md) | Give agent panes browser inspection tools. |
 | [`recommission`](skills/recommission/SKILL.md) | Re-probe a machine record and ship at most one proven correction. |
 
 </details>

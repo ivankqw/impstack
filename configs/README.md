@@ -3,12 +3,14 @@
 A config assigns a harness, model, and effort level to each role for one stretch of work. Choose the
 config before work starts. Record any fallback in the pull request.
 
+Claude model fields use `claude` CLI aliases. Codex model fields use slugs from `pstack-codex.md`.
+
 ## Roles
 
 | Role | Responsibility | Preferred property |
 |---|---|---|
 | `orchestrator` | Holds the plan and makes decisions. | Judgment. |
-| `implementer` | Builds from an explicit brief in a fresh Herdr pane. | Throughput. |
+| `implementer` | Builds from an explicit brief in a fresh Herdr pane. Reads `service_tier` for Codex. | Throughput. |
 | `reviewer` | Attacks the finished diff without the author's context. | Independence. |
 
 The reviewer must not use the model that wrote the code. Use a different vendor when possible. If
@@ -19,11 +21,15 @@ only one vendor is available, use different model weights and require executed e
 | Config | Harness | Orchestrator | Implementer | Reviewer | Use it when |
 |---|---|---|---|---|---|
 | `default` | Claude Code | Claude Opus 5 | GPT-5.6 Sol in Herdr | Fresh Claude Sonnet 5 subagent | Claude Code is available. |
+| `claude-lanes` | Claude Code | Claude Opus 5 | Claude Opus 5 in Herdr | Fresh Claude Sonnet 5 subagent | Claude credits allow Opus lanes. |
 | `single-vendor` | Codex | GPT-5.6 Sol | GPT-5.6 Luna | GPT-5.6 Terra | Claude is unavailable. |
 
 The default path keeps implementation visible in Herdr panes. It gives each implementation task a
 fresh Codex context. Dispatch the reviewer as a fresh Sonnet subagent. Never use Opus for a Claude
 subagent.
+
+Use `claude-lanes` when the operator allows Opus implementation panes. Require each lane to push and
+open a draft pull request. Keep reviewers out of the shared checkout.
 
 Use `single-vendor` only as the no-Claude fallback. Its reviewer uses different Codex weights from
 the author and receives no shared context.

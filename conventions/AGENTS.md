@@ -11,6 +11,7 @@ somewhere else, put it in the private layer.
   critique. Numbers you act on, you re-derive.
 - Tag every number in a claim: `[measured: <command> -> <output>]`, `[sourced: <doc>]`, `[estimate]`,
   or `[unverified]`. A virtue cannot be graded. A tag can be checked.
+- Use `[observed: <date> <who>]` for a one-off observation that a document cannot reproduce.
 - Tags go missing in the closing summary most of all; tag counts there too, and mark a projection
   `[estimate]`.
 - Measure the thing, not its shadow. The absence of an error string proves nothing. Never read an
@@ -28,6 +29,7 @@ somewhere else, put it in the private layer.
 - Guessing an identifier is worse when it works. Discover it through the API.
   When a config declares no default, find out why.
 - Assert your anchors. Before editing by string replacement, check the pattern matches exactly once.
+- Measure the premise before a write pass. Confirm that its required records or accounts exist.
 - A template is not a description of production. Diff live state against it before applying; to
   change one property, patch that property.
 
@@ -108,6 +110,10 @@ run, and why. Stop a review loop out loud when a round has no independent signal
   Never tell it to skip what you already verified, because that is where a shared blind spot hides.
   Require it to run the tests and cite command plus output for anything it calls verified. A clean
   pass with cited evidence is a real result. Padding the findings is not.
+- Review in a throwaway worktree pinned to the reviewed SHA. Leave the shared checkout untouched.
+  One reviewer's unreverted probe removed a guard from an implementation lane.
+- Re-verify a fix by resuming the same reviewer with the new SHA. It must rerun the probes that
+  found the defect.
 - **Standards and spec conformance.** A second pass over the same fixed point: does the diff follow
   this repo's documented standards, and does it do what the originating issue asked. Use the
   harness's standards-and-spec review command where one is configured; in Claude Code that is
@@ -121,6 +127,8 @@ run, and why. Stop a review loop out loud when a round has no independent signal
 - Run `git diff --check` and the project's own test command at minimum.
 - A test that has never failed proves nothing. Make it fail before trusting a green run: mutate the
   code or the input and watch it go red.
+- Mutate one layer at a time. Remove the app check alone, then the database constraint alone. A test
+  that fails only when both are absent proves neither layer.
 - Never edit files while a suite runs against them.
 - Before you measure, say what the broken world would show. A probe that reads the same either way
   proves nothing. This applies to browser probes, DOM reads and grep confirmations, not only
@@ -159,6 +167,14 @@ these as passes; the rules matter on their own.
 
 - Prefix branches `feat/`, `fix/`, `refactor/`, `docs/`, `chore/`. Never a personal prefix.
 - Open pull requests as drafts.
+- A lane is done only after it pushes the branch and opens the draft pull request. Require a
+  one-line pull-request URL sentinel file. Lanes have written reports without pushing or opening a
+  pull request.
+- Monitor report and sentinel files with a persistent monitor. Shell sleep loops die with sessions.
+- Run commands beyond the harness timeout detached. Write their output to a log file because the
+  harness stops long foreground commands.
+- Parallel schema revisions collide on revision numbers. The second lane to merge renumbers its
+  revision and rebases.
 - Before pushing, check `git status --short --branch`, keep commits focused, leave no temp files, and
   rebase on the default branch if you have drifted.
 - PR body sections: copy the repo's PR template headings exactly; CI can gate on the text. With no

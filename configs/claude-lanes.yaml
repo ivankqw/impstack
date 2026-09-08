@@ -1,0 +1,12 @@
+name: claude-lanes
+summary: Claude Code plans, Claude Opus implements in Herdr, and Sonnet reviews.
+when: Claude credits allow Opus implementation lanes.
+harness: claude-code
+roles:
+  orchestrator: { model: opus, effort: medium }
+  implementer:  { model: opus, effort: medium, runtime: herdr, parallel: true }
+  reviewer:     { model: sonnet, effort: high, fresh_context: true, cross_vendor: false }
+notes: >-
+  Run each implementer in a Herdr pane. A lane is incomplete until it pushes its
+  branch and opens a draft pull request. Reviewers use throwaway worktrees and
+  never edit the shared checkout.

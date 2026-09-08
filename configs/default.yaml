@@ -4,9 +4,10 @@ when: Ordinary day-to-day work.
 harness: claude-code
 roles:
   orchestrator: { model: opus-5, effort: medium }
-  implementer:  { model: gpt-5.6-sol, effort: medium, runtime: herdr, parallel: true }
+  implementer:  { model: gpt-5.6-sol, effort: low, service_tier: default, runtime: herdr, parallel: true }
   reviewer:     { model: sonnet-5, effort: high, fresh_context: true, cross_vendor: true }
 notes: >-
-  Run each Codex implementer in a Herdr pane. Dispatch the reviewer as a fresh
+  Run each Codex implementer in a Herdr pane. Raise effort only when the operator
+  says so. Dispatch the reviewer as a fresh
   Claude Sonnet subagent with no shared context. Never use Opus for a Claude
   subagent. If Claude is unavailable, switch to single-vendor.
