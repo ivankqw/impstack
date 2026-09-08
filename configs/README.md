@@ -3,6 +3,8 @@
 A config assigns a harness, model, and effort level to each role for one stretch of work. Choose the
 config before work starts. Record any fallback in the pull request.
 
+Claude model fields use `claude` CLI aliases. Codex model fields use slugs from `pstack-codex.md`.
+
 ## Roles
 
 | Role | Responsibility | Preferred property |
