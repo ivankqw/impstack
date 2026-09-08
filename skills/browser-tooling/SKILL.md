@@ -1,8 +1,8 @@
 ---
 name: browser-tooling
 description: >-
-  Give Codex or Claude panes browser inspection through chrome-devtools-mcp
-  when they must drive a shared Chrome session or an isolated headless browser.
+  Use when a Codex or Claude pane must drive a shared Chrome session or an
+  isolated headless browser. Provides inspection through chrome-devtools-mcp.
 ---
 
 # Add browser tooling
@@ -43,17 +43,17 @@ Restart the pane after registration.
 ## Cross a blocked firewall direction
 
 If the client cannot connect to the browser, run a reverse relay. Put a hub beside the client. Make
-the browser side connect outward to the hub, then relay each client request through that connection.
+the browser side connect outward to the hub. Relay each client request through that connection.
 This direction worked when a firewall blocked inbound connections to the browser side
-`[sourced: 2026-09-08 operator trial]`.
+`[observed: 2026-09-08 operator]`.
 
 ## Work within observed limits
 
 - Dense accessibility snapshots reached about 32,000 characters
-  `[sourced: 2026-09-08 operator trial]`. Narrow the page before capture.
+  `[observed: 2026-09-08 operator]`. Narrow the page before capture.
 - `take_screenshot --filePath` can reject paths outside the server roots. Request inline image data
-  and decode it inside an allowed path `[sourced: 2026-09-08 operator trial]`.
+  and decode it inside an allowed path `[observed: 2026-09-08 operator]`.
 - The bundled Lighthouse report has no performance category. Use a performance trace for LCP and
-  CLS `[sourced: 2026-09-08 operator trial]`.
-- Dark-mode emulation changes only apps that read `prefers-color-scheme`. Change the app setting when
-  the app owns its theme `[sourced: 2026-09-08 operator trial]`.
+  CLS `[observed: 2026-09-08 operator]`.
+- Dark-mode emulation changes only apps that read `prefers-color-scheme`. Change the app setting
+  when the app owns its theme `[observed: 2026-09-08 operator]`.

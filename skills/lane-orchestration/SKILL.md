@@ -29,11 +29,12 @@ branch and a draft pull request is incomplete.
 Find the worktree's root pane. Start Codex with a new agent name and explicit budget flags:
 
 ```bash
-herdr agent start <new-name> --kind codex --pane <pane-id> -- -c model_reasoning_effort=<level> -c service_tier=default
+herdr agent start <new-name> --kind codex --pane <pane-id> -- -c model_reasoning_effort=<config.effort> -c service_tier=<config.service_tier>
 ```
 
-The model default tier can enable fast service `[sourced: operator run]`. Herdr reuses an old command
-when you restart an agent name `[sourced: operator run]`. Use a new name when the command changes.
+The model default tier can enable fast service `[observed: 2026-09-08 operator]`. Herdr reuses an
+old command when you restart an agent name `[observed: 2026-09-08 operator]`. Use a new name when
+the command changes.
 
 ## Start a Claude pane
 
@@ -44,7 +45,7 @@ herdr agent start <new-name> --kind claude --pane <pane-id> -- --model opus --ef
 ```
 
 At the first Bash permission prompt, choose "switch to auto mode". Do not send stray keystrokes to
-a working pane. A stray key can interrupt the agent `[sourced: operator run]`.
+a working pane. A stray key can interrupt the agent `[observed: 2026-09-07 operator]`.
 
 ## Deliver the prompt
 
@@ -55,8 +56,8 @@ Read <brief> and do exactly what it says.
 ```
 
 Monitor the report and sentinel paths. Use a persistent monitor instead of a shell sleep loop.
-Shell waiters can die with the session `[sourced: operator run]`. Run commands beyond the harness
-timeout detached and write their output to a log file.
+Shell waiters can die with the session `[observed: 2026-09-07 operator]`. Run commands beyond the
+harness timeout detached and write their output to a log file.
 
 ## Review and fix
 
@@ -72,7 +73,8 @@ review lanes approve.
 ## Merge and clean up
 
 Merge only under a named grant that covers the repository and merge action. State what the merge
-triggers before you use the grant. Verify the reviewed SHA, checks, and merge head.
+triggers before you use the grant. Verify the reviewed SHA, branch state, checks, and pinned merge
+head.
 
 After the merge, remove the worktree with your worktree helper. Stop its Herdr workspace and remove
 temporary brief, report, sentinel, and log files.

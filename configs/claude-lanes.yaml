@@ -4,7 +4,7 @@ when: Claude credits allow Opus implementation lanes.
 harness: claude-code
 roles:
   orchestrator: { model: opus-5, effort: medium }
-  implementer:  { model: opus-5, effort: medium, runtime: herdr, parallel: true }
+  implementer:  { model: opus-5, effort: medium, service_tier: default, runtime: herdr, parallel: true }
   reviewer:     { model: sonnet-5, effort: high, fresh_context: true, cross_vendor: false }
 notes: >-
   Run each implementer in a Herdr pane. A lane is incomplete until it pushes its

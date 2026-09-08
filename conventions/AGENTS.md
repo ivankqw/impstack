@@ -11,6 +11,7 @@ somewhere else, put it in the private layer.
   critique. Numbers you act on, you re-derive.
 - Tag every number in a claim: `[measured: <command> -> <output>]`, `[sourced: <doc>]`, `[estimate]`,
   or `[unverified]`. A virtue cannot be graded. A tag can be checked.
+- Use `[observed: <date> <who>]` for a one-off observation that a document cannot reproduce.
 - Tags go missing in the closing summary most of all; tag counts there too, and mark a projection
   `[estimate]`.
 - Measure the thing, not its shadow. The absence of an error string proves nothing. Never read an
@@ -28,8 +29,8 @@ somewhere else, put it in the private layer.
 - Guessing an identifier is worse when it works. Discover it through the API.
   When a config declares no default, find out why.
 - Assert your anchors. Before editing by string replacement, check the pattern matches exactly once.
-- Measure the premise before a write pass. One re-attribution pass needed seated users. The
-  workspace had 13 `[sourced: operator incident]`.
+- Measure the premise before a write pass: confirm the records or accounts the pass depends on exist
+  before you write.
 - A template is not a description of production. Diff live state against it before applying; to
   change one property, patch that property.
 

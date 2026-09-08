@@ -8,7 +8,7 @@ config before work starts. Record any fallback in the pull request.
 | Role | Responsibility | Preferred property |
 |---|---|---|
 | `orchestrator` | Holds the plan and makes decisions. | Judgment. |
-| `implementer` | Builds from an explicit brief in a fresh Herdr pane. | Throughput. |
+| `implementer` | Builds from an explicit brief in a fresh Herdr pane. Reads `service_tier` for Codex. | Throughput. |
 | `reviewer` | Attacks the finished diff without the author's context. | Independence. |
 
 The reviewer must not use the model that wrote the code. Use a different vendor when possible. If
