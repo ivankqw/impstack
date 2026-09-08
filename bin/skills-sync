@@ -451,6 +451,27 @@ def normalize_and_commit(root: pathlib.Path, env: dict[str, str]) -> bool:
     return True
 
 
+def has_required_skill_frontmatter(path: pathlib.Path) -> bool:
+    try:
+        lines = path.read_text().splitlines()
+    except (OSError, UnicodeError):
+        return False
+    if not lines or lines[0].strip() != "---":
+        return False
+    try:
+        closing = next(
+            index for index, line in enumerate(lines[1:], start=1) if line.strip() == "---"
+        )
+    except StopIteration:
+        return False
+    fields = {
+        match.group(1)
+        for line in lines[1:closing]
+        if (match := re.fullmatch(r"(name|description):[ \t]*\S(?:.*\S)?[ \t]*", line))
+    }
+    return fields == {"name", "description"}
+
+
 def install_missing(root: pathlib.Path) -> int:
     shared = shared_skills_root()
     shared.mkdir(mode=0o700, parents=True, exist_ok=True)
@@ -483,15 +504,15 @@ def install_missing(root: pathlib.Path) -> int:
             )
         except subprocess.CalledProcessError as error:
             installed = shared / name / "SKILL.md"
-            if installed.is_file():
+            if installed.is_file() and has_required_skill_frontmatter(installed):
                 print(
-                    f"installed skill despite installer exit {error.returncode}: {name}",
+                    f"! installed skill despite installer exit {error.returncode}: {name}",
                     file=sys.stderr,
                 )
             else:
                 failures.append(name)
                 print(
-                    f"failed to install skill: {name} (exit {error.returncode})",
+                    f"! failed to install skill: {name} (exit {error.returncode})",
                     file=sys.stderr,
                 )
     if failures:
