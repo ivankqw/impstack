@@ -1,0 +1,750 @@
+{
+  "version": 1,
+  "assertions": [
+    {
+      "id": "install.preflight",
+      "kind": "command",
+      "working_directory": "repo",
+      "applicability": [],
+      "command": [
+        "./install.sh",
+        "preflight"
+      ],
+      "expectation": {
+        "exit_code": 0
+      },
+      "remediation": {
+        "kind": "command",
+        "text": "Run `./install.sh preflight`. Fix the reported prerequisite.",
+        "statuses": [
+          "fail"
+        ]
+      }
+    },
+    {
+      "id": "install.list",
+      "kind": "command",
+      "working_directory": "repo",
+      "applicability": [],
+      "command": [
+        "./install.sh",
+        "--list"
+      ],
+      "expectation": {
+        "exit_code": 0
+      },
+      "remediation": {
+        "kind": "command",
+        "text": "Run `./install.sh --help`. Fix the reported installer error.",
+        "statuses": [
+          "fail"
+        ]
+      }
+    },
+    {
+      "id": "skills.check",
+      "kind": "command",
+      "working_directory": "repo",
+      "applicability": [],
+      "command": [
+        "bin/skills-sync",
+        "check"
+      ],
+      "expectation": {
+        "exit_code": 0
+      },
+      "remediation": {
+        "kind": "command",
+        "text": "Run `bin/skills-sync check`. Fix each catalog error.",
+        "statuses": [
+          "fail"
+        ]
+      }
+    },
+    {
+      "id": "skills.shared-path",
+      "kind": "shared-path",
+      "working_directory": "repo",
+      "applicability": [],
+      "command": [
+        "bin/skills-sync",
+        "resolve-shared"
+      ],
+      "expectation": {
+        "exit_code": 0
+      },
+      "remediation": {
+        "kind": "command",
+        "text": "Set `SHARED_SKILLS` to the intended directory. Repeat this check.",
+        "statuses": [
+          "fail"
+        ]
+      }
+    },
+    {
+      "id": "runtime.node",
+      "kind": "command",
+      "working_directory": "repo",
+      "applicability": [],
+      "command": [
+        "bin/skills-sync",
+        "resolve-node"
+      ],
+      "expectation": {
+        "exit_code": 0
+      },
+      "remediation": {
+        "kind": "command",
+        "text": "Install Node.js or configure a supported Node.js manager.",
+        "statuses": [
+          "fail"
+        ]
+      }
+    },
+    {
+      "id": "runtime.npx",
+      "kind": "command",
+      "working_directory": "repo",
+      "applicability": [],
+      "command": [
+        "bin/skills-sync",
+        "resolve-npx"
+      ],
+      "expectation": {
+        "exit_code": 0
+      },
+      "remediation": {
+        "kind": "command",
+        "text": "Install npm with npx or configure a supported Node.js manager.",
+        "statuses": [
+          "fail"
+        ]
+      }
+    },
+    {
+      "id": "runtime.package-manager",
+      "kind": "command",
+      "working_directory": "repo",
+      "applicability": [
+        {
+          "kind": "command",
+          "name": "npm",
+          "actionable": false
+        }
+      ],
+      "command": [
+        "npm",
+        "--version"
+      ],
+      "expectation": {
+        "exit_code": 0
+      },
+      "remediation": {
+        "kind": "command",
+        "text": "Install npm or put its executable on `PATH`.",
+        "statuses": [
+          "fail"
+        ]
+      }
+    },
+    {
+      "id": "harness.claude.auth",
+      "kind": "command",
+      "working_directory": "repo",
+      "applicability": [
+        {
+          "kind": "command",
+          "name": "claude",
+          "actionable": false
+        }
+      ],
+      "command": [
+        "claude",
+        "auth",
+        "status"
+      ],
+      "expectation": {
+        "exit_code": 0
+      },
+      "remediation": {
+        "kind": "wizard",
+        "stage_id": "claude-login",
+        "stage": "Claude login",
+        "statuses": [
+          "fail"
+        ]
+      }
+    },
+    {
+      "id": "harness.claude.canary",
+      "kind": "canary",
+      "working_directory": "outside-project",
+      "applicability": [
+        {
+          "kind": "command",
+          "name": "claude",
+          "actionable": false
+        }
+      ],
+      "command": [
+        "claude",
+        "-p",
+        "Do not use tools. If your instructions contain 'A virtue cannot be graded', write LOADED, else write MISSING."
+      ],
+      "expectation": {
+        "exit_code": 0,
+        "stdout_equals": "LOADED"
+      },
+      "remediation": {
+        "kind": "command",
+        "text": "Run `./install.sh instructions`. Start a new Claude Code session.",
+        "statuses": [
+          "fail",
+          "indeterminate"
+        ]
+      }
+    },
+    {
+      "id": "harness.codex.auth",
+      "kind": "command",
+      "working_directory": "repo",
+      "applicability": [
+        {
+          "kind": "command",
+          "name": "codex",
+          "actionable": false
+        }
+      ],
+      "command": [
+        "codex",
+        "login",
+        "status"
+      ],
+      "expectation": {
+        "exit_code": 0
+      },
+      "remediation": {
+        "kind": "wizard",
+        "stage_id": "codex-login",
+        "stage": "Codex login",
+        "statuses": [
+          "fail"
+        ]
+      }
+    },
+    {
+      "id": "harness.codex.canary",
+      "kind": "canary",
+      "working_directory": "outside-project",
+      "applicability": [
+        {
+          "kind": "command",
+          "name": "codex",
+          "actionable": false
+        }
+      ],
+      "command": [
+        "codex",
+        "exec",
+        "--skip-git-repo-check",
+        "Do not use tools. If your instructions contain 'A virtue cannot be graded', write LOADED, else write MISSING."
+      ],
+      "expectation": {
+        "exit_code": 0,
+        "stdout_equals": "LOADED"
+      },
+      "remediation": {
+        "kind": "command",
+        "text": "Run `./install.sh instructions`. Start a new Codex session.",
+        "statuses": [
+          "fail",
+          "indeterminate"
+        ]
+      }
+    },
+    {
+      "id": "harness.opencode.auth",
+      "kind": "command",
+      "working_directory": "repo",
+      "applicability": [
+        {
+          "kind": "command",
+          "name": "opencode",
+          "actionable": false
+        }
+      ],
+      "command": [
+        "opencode",
+        "auth",
+        "list"
+      ],
+      "expectation": {
+        "exit_code": 0
+      },
+      "remediation": {
+        "kind": "wizard",
+        "stage_id": "opencode-login",
+        "stage": "OpenCode login",
+        "statuses": [
+          "fail"
+        ]
+      }
+    },
+    {
+      "id": "harness.opencode.canary",
+      "kind": "json-canary",
+      "working_directory": "outside-project",
+      "applicability": [
+        {
+          "kind": "command",
+          "name": "opencode",
+          "actionable": false
+        }
+      ],
+      "command": [
+        "opencode",
+        "run",
+        "--format",
+        "json",
+        "Do not use tools. If your instructions contain 'A virtue cannot be graded', write LOADED, else write MISSING."
+      ],
+      "expectation": {
+        "exit_code": 0,
+        "stdout_equals": "LOADED"
+      },
+      "remediation": {
+        "kind": "command",
+        "text": "Run `./install.sh instructions`. Start a new OpenCode session.",
+        "statuses": [
+          "fail",
+          "indeterminate"
+        ]
+      }
+    },
+    {
+      "id": "mcp.context7.claude",
+      "kind": "command",
+      "working_directory": "repo",
+      "applicability": [
+        {
+          "kind": "command",
+          "name": "claude",
+          "actionable": false
+        }
+      ],
+      "command": [
+        "claude",
+        "mcp",
+        "get",
+        "context7"
+      ],
+      "expectation": {
+        "exit_code": 0
+      },
+      "remediation": {
+        "kind": "wizard",
+        "stage_id": "context7-token",
+        "stage": "Context7 token",
+        "statuses": [
+          "fail"
+        ]
+      }
+    },
+    {
+      "id": "mcp.exa.claude",
+      "kind": "command",
+      "working_directory": "repo",
+      "applicability": [
+        {
+          "kind": "command",
+          "name": "claude",
+          "actionable": false
+        }
+      ],
+      "command": [
+        "claude",
+        "mcp",
+        "get",
+        "exa"
+      ],
+      "expectation": {
+        "exit_code": 0
+      },
+      "remediation": {
+        "kind": "command",
+        "text": "Run `./install.sh mcp`. Repeat this check.",
+        "statuses": [
+          "fail"
+        ]
+      }
+    },
+    {
+      "id": "mcp.linear-server.claude",
+      "kind": "command",
+      "working_directory": "repo",
+      "applicability": [
+        {
+          "kind": "command",
+          "name": "claude",
+          "actionable": false
+        }
+      ],
+      "command": [
+        "claude",
+        "mcp",
+        "get",
+        "linear-server"
+      ],
+      "expectation": {
+        "exit_code": 0
+      },
+      "remediation": {
+        "kind": "command",
+        "text": "Run `./install.sh mcp`. Repeat this check.",
+        "statuses": [
+          "fail"
+        ]
+      }
+    },
+    {
+      "id": "mcp.executor.claude",
+      "kind": "command",
+      "working_directory": "repo",
+      "applicability": [
+        {
+          "kind": "command",
+          "name": "claude",
+          "actionable": false
+        },
+        {
+          "kind": "environment",
+          "name": "EXECUTOR_MCP_URL",
+          "actionable": true
+        }
+      ],
+      "command": [
+        "claude",
+        "mcp",
+        "get",
+        "executor"
+      ],
+      "expectation": {
+        "exit_code": 0
+      },
+      "remediation": {
+        "kind": "wizard",
+        "stage_id": "executor-connection",
+        "stage": "Executor connection",
+        "statuses": [
+          "fail",
+          "not-applicable"
+        ]
+      }
+    },
+    {
+      "id": "mcp.context7.codex",
+      "kind": "command",
+      "working_directory": "repo",
+      "applicability": [
+        {
+          "kind": "command",
+          "name": "codex",
+          "actionable": false
+        }
+      ],
+      "command": [
+        "codex",
+        "mcp",
+        "get",
+        "context7",
+        "--json"
+      ],
+      "expectation": {
+        "exit_code": 0
+      },
+      "remediation": {
+        "kind": "wizard",
+        "stage_id": "context7-token",
+        "stage": "Context7 token",
+        "statuses": [
+          "fail"
+        ]
+      },
+      "absent_registration": {
+        "status": "not-applicable",
+        "reason": "install.sh cannot register Context7 for Codex because its header is not bearer authentication.",
+        "exit_codes": [
+          1
+        ],
+        "requires_stdout_without_expected": false,
+        "stderr_contains": "No MCP server named 'context7' found."
+      }
+    },
+    {
+      "id": "mcp.exa.codex",
+      "kind": "command",
+      "working_directory": "repo",
+      "applicability": [
+        {
+          "kind": "command",
+          "name": "codex",
+          "actionable": false
+        }
+      ],
+      "command": [
+        "codex",
+        "mcp",
+        "get",
+        "exa",
+        "--json"
+      ],
+      "expectation": {
+        "exit_code": 0
+      },
+      "remediation": {
+        "kind": "command",
+        "text": "Run `./install.sh mcp`. Repeat this check.",
+        "statuses": [
+          "fail"
+        ]
+      }
+    },
+    {
+      "id": "mcp.linear-server.codex",
+      "kind": "command",
+      "working_directory": "repo",
+      "applicability": [
+        {
+          "kind": "command",
+          "name": "codex",
+          "actionable": false
+        }
+      ],
+      "command": [
+        "codex",
+        "mcp",
+        "get",
+        "linear-server",
+        "--json"
+      ],
+      "expectation": {
+        "exit_code": 0
+      },
+      "remediation": {
+        "kind": "command",
+        "text": "Run `./install.sh mcp`. Repeat this check.",
+        "statuses": [
+          "fail"
+        ]
+      }
+    },
+    {
+      "id": "mcp.executor.codex",
+      "kind": "command",
+      "working_directory": "repo",
+      "applicability": [
+        {
+          "kind": "command",
+          "name": "codex",
+          "actionable": false
+        },
+        {
+          "kind": "environment",
+          "name": "EXECUTOR_MCP_URL",
+          "actionable": true
+        }
+      ],
+      "command": [
+        "codex",
+        "mcp",
+        "get",
+        "executor",
+        "--json"
+      ],
+      "expectation": {
+        "exit_code": 0
+      },
+      "remediation": {
+        "kind": "wizard",
+        "stage_id": "executor-connection",
+        "stage": "Executor connection",
+        "statuses": [
+          "fail",
+          "not-applicable"
+        ]
+      }
+    },
+    {
+      "id": "mcp.context7.opencode",
+      "kind": "command",
+      "working_directory": "repo",
+      "applicability": [
+        {
+          "kind": "command",
+          "name": "opencode",
+          "actionable": false
+        }
+      ],
+      "command": [
+        "opencode",
+        "mcp",
+        "list"
+      ],
+      "expectation": {
+        "exit_code": 0,
+        "stdout_contains": "context7"
+      },
+      "remediation": {
+        "kind": "wizard",
+        "stage_id": "context7-token",
+        "stage": "Context7 token",
+        "statuses": [
+          "fail"
+        ]
+      },
+      "absent_registration": {
+        "status": "not-applicable",
+        "reason": "install.sh cannot register context7 for OpenCode because MCP add is interactive.",
+        "exit_codes": [
+          0
+        ],
+        "requires_stdout_without_expected": true
+      }
+    },
+    {
+      "id": "mcp.exa.opencode",
+      "kind": "command",
+      "working_directory": "repo",
+      "applicability": [
+        {
+          "kind": "command",
+          "name": "opencode",
+          "actionable": false
+        }
+      ],
+      "command": [
+        "opencode",
+        "mcp",
+        "list"
+      ],
+      "expectation": {
+        "exit_code": 0,
+        "stdout_contains": "exa"
+      },
+      "remediation": {
+        "kind": "command",
+        "text": "Run `./install.sh mcp`. Repeat this check.",
+        "statuses": [
+          "fail"
+        ]
+      },
+      "absent_registration": {
+        "status": "not-applicable",
+        "reason": "install.sh cannot register exa for OpenCode because MCP add is interactive.",
+        "exit_codes": [
+          0
+        ],
+        "requires_stdout_without_expected": true
+      }
+    },
+    {
+      "id": "mcp.linear-server.opencode",
+      "kind": "command",
+      "working_directory": "repo",
+      "applicability": [
+        {
+          "kind": "command",
+          "name": "opencode",
+          "actionable": false
+        }
+      ],
+      "command": [
+        "opencode",
+        "mcp",
+        "list"
+      ],
+      "expectation": {
+        "exit_code": 0,
+        "stdout_contains": "linear-server"
+      },
+      "remediation": {
+        "kind": "command",
+        "text": "Run `./install.sh mcp`. Repeat this check.",
+        "statuses": [
+          "fail"
+        ]
+      },
+      "absent_registration": {
+        "status": "not-applicable",
+        "reason": "install.sh cannot register linear-server for OpenCode because MCP add is interactive.",
+        "exit_codes": [
+          0
+        ],
+        "requires_stdout_without_expected": true
+      }
+    },
+    {
+      "id": "mcp.executor.opencode",
+      "kind": "command",
+      "working_directory": "repo",
+      "applicability": [
+        {
+          "kind": "command",
+          "name": "opencode",
+          "actionable": false
+        },
+        {
+          "kind": "environment",
+          "name": "EXECUTOR_MCP_URL",
+          "actionable": true
+        }
+      ],
+      "command": [
+        "opencode",
+        "mcp",
+        "list"
+      ],
+      "expectation": {
+        "exit_code": 0,
+        "stdout_contains": "executor"
+      },
+      "remediation": {
+        "kind": "wizard",
+        "stage_id": "executor-connection",
+        "stage": "Executor connection",
+        "statuses": [
+          "fail",
+          "not-applicable"
+        ]
+      },
+      "absent_registration": {
+        "status": "not-applicable",
+        "reason": "install.sh cannot register executor for OpenCode because MCP add is interactive.",
+        "exit_codes": [
+          0
+        ],
+        "requires_stdout_without_expected": true
+      }
+    },
+    {
+      "id": "proof.install-bin",
+      "kind": "command",
+      "working_directory": "repo",
+      "applicability": [],
+      "command": [
+        "./install.sh",
+        "bin"
+      ],
+      "expectation": {
+        "exit_code": 0
+      },
+      "remediation": {
+        "kind": "command",
+        "text": "Fix the `bin` install step. Repeat the proof lane.",
+        "statuses": [
+          "fail"
+        ]
+      }
+    }
+  ]
+}

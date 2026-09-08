@@ -27,6 +27,9 @@ from dataclasses import dataclass
 from typing import Any
 from xml.sax.saxutils import escape
 
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
+from scripts import user_state_paths
+
 CATALOG_FIELDS = ("source", "sourceType", "sourceUrl", "skillPath")
 
 
@@ -48,8 +51,10 @@ class SkillStatePaths:
 def skill_state_paths() -> SkillStatePaths:
     home = pathlib.Path.home().resolve()
     raw_xdg = os.environ.get("XDG_STATE_HOME")
-    xdg_state_home = pathlib.Path(raw_xdg).expanduser().resolve() if raw_xdg else None
-    shared = pathlib.Path(os.environ.get("SHARED_SKILLS", home / ".agents" / "skills"))
+    xdg_state_home = user_state_paths.resolve(raw_xdg, home) if raw_xdg else None
+    shared = user_state_paths.resolve(
+        os.environ.get("SHARED_SKILLS") or home / ".agents" / "skills", home
+    )
     native_lock = (
         xdg_state_home / "skills" / ".skill-lock.json"
         if xdg_state_home
@@ -57,12 +62,12 @@ def skill_state_paths() -> SkillStatePaths:
     )
     configured_lock = os.environ.get("SKILLS_LOCK_FILE")
     if configured_lock:
-        lock = pathlib.Path(configured_lock)
+        lock = user_state_paths.resolve(configured_lock, home)
     else:
         lock = native_lock
     return SkillStatePaths(
-        shared=shared.expanduser().resolve(),
-        lock=lock.expanduser().resolve(),
+        shared=shared,
+        lock=lock,
         xdg_state_home=xdg_state_home,
         native_lock=native_lock,
     )

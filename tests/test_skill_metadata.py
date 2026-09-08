@@ -17,6 +17,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 import sys
 
 sys.path.insert(0, str(ROOT / "scripts"))
+import managed_instructions
 import skill_metadata
 
 
@@ -791,6 +792,88 @@ class SkillMetadataTest(unittest.TestCase):
             self.assertEqual(target.read_bytes(), operator_content)
             self.assertNotIn("Traceback", result.stderr)
 
+    def test_instruction_backup_is_private_at_creation(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            target = pathlib.Path(temp) / "AGENTS.md"
+            target.write_text("private instructions\n")
+            plan = managed_instructions.classify(
+                "AGENTS.md",
+                target,
+                b"replacement instructions\n",
+                b"legacy instructions\n",
+                None,
+            )
+
+            previous_umask = os.umask(0o022)
+            try:
+                with contextlib.redirect_stdout(io.StringIO()):
+                    protected = managed_instructions.protect(plan)
+            finally:
+                os.umask(previous_umask)
+
+            self.assertIsNotNone(protected.backup_path)
+            assert protected.backup_path is not None
+            self.assertEqual(protected.backup_path.stat().st_mode & 0o777, 0o600)
+
+    def test_instruction_noop_repairs_public_mode(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = pathlib.Path(temp)
+            home, env = self.create_valid_install_fixture(root)
+            command = [str(ROOT / "install.sh"), "instructions"]
+            first = subprocess.run(
+                command,
+                cwd=ROOT,
+                env=env,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(first.returncode, 0, first.stderr + first.stdout)
+            target = home / "AGENTS.md"
+            content = target.read_bytes()
+            target.chmod(0o644)
+
+            result = subprocess.run(
+                command,
+                cwd=ROOT,
+                env=env,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+            self.assertEqual(target.read_bytes(), content)
+            self.assertEqual(target.stat().st_mode & 0o777, 0o600)
+
+    def test_instruction_preflight_rejects_stale_staging_files(self) -> None:
+        for case in ("instruction", "state"):
+            with self.subTest(case=case), tempfile.TemporaryDirectory() as temp:
+                root = pathlib.Path(temp)
+                home, env = self.create_valid_install_fixture(root)
+                state_path = home / ".local/state/impstack/instructions.json"
+                target = home / "AGENTS.md"
+                managed_path = target if case == "instruction" else state_path
+                managed_path.parent.mkdir(parents=True, exist_ok=True)
+                stale = managed_path.with_name(f".{managed_path.name}.abandoned")
+                stale.write_text("interrupted staged content\n")
+
+                result = subprocess.run(
+                    [str(ROOT / "install.sh"), "instructions"],
+                    cwd=ROOT,
+                    env=env,
+                    text=True,
+                    capture_output=True,
+                    check=False,
+                )
+
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("stale managed artifact staging file", result.stderr)
+                self.assertTrue(stale.exists())
+                self.assertFalse(target.exists())
+                self.assertFalse((home / ".claude/CLAUDE.md").exists())
+                self.assertFalse(state_path.exists())
+
     def test_instruction_state_read_failure_degrades_to_unknown_provenance(self) -> None:
         corrupt_states = (
             ("malformed JSON", b"{broken\n"),
@@ -923,6 +1006,79 @@ class SkillMetadataTest(unittest.TestCase):
             self.assertNotIn("Traceback", result.stderr)
             self.assertEqual(len(result.stderr.splitlines()), 1, result.stderr)
             self.assertIn(str(state_root / "impstack/instructions.json"), result.stderr)
+
+    def test_managed_instructions_anchors_relative_xdg_beneath_home(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = pathlib.Path(temp)
+            home = root / "home"
+            home.mkdir()
+            relative = "relative-state"
+            env = os.environ.copy()
+            env["XDG_STATE_HOME"] = relative
+
+            result = subprocess.run(
+                [
+                    "/usr/bin/python3",
+                    str(ROOT / "scripts/managed_instructions.py"),
+                    "--root",
+                    str(ROOT),
+                    "--home",
+                    str(home),
+                    "--private",
+                    str(root / "missing-private"),
+                ],
+                cwd=root,
+                env=env,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+            self.assertFalse((root / relative).exists())
+            self.assertTrue(
+                (home / relative / "impstack/instructions.json").is_file()
+            )
+
+    def test_managed_instructions_uses_selected_home_for_xdg(self) -> None:
+        cases = (
+            ("", pathlib.Path(".local/state")),
+            ("~/state", pathlib.Path("state")),
+        )
+        for configured, expected in cases:
+            with self.subTest(configured=configured), tempfile.TemporaryDirectory() as temp:
+                root = pathlib.Path(temp)
+                home = root / "selected-home"
+                process_home = root / "process-home"
+                home.mkdir()
+                process_home.mkdir()
+                env = os.environ.copy()
+                env["HOME"] = str(process_home)
+                env["XDG_STATE_HOME"] = configured
+
+                result = subprocess.run(
+                    [
+                        "/usr/bin/python3",
+                        str(ROOT / "scripts/managed_instructions.py"),
+                        "--root",
+                        str(ROOT),
+                        "--home",
+                        str(home),
+                        "--private",
+                        str(root / "missing-private"),
+                    ],
+                    cwd=root,
+                    env=env,
+                    text=True,
+                    capture_output=True,
+                    check=False,
+                )
+
+                self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+                self.assertTrue(
+                    (home / expected / "impstack/instructions.json").is_file()
+                )
+                self.assertFalse(any(process_home.rglob("instructions.json")))
 
     def test_instruction_pair_is_written_before_the_state_commit(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
@@ -1630,10 +1786,16 @@ class SkillMetadataTest(unittest.TestCase):
             )
             original_claude = original_snapshot[".claude/CLAUDE.md"][1]
             new_claude = new_snapshot[".claude/CLAUDE.md"][1]
-            self.assertEqual(new_claude.split(b"\n", 1)[1], original_claude)
+            self.assertEqual(
+                new_claude.split(b"\n", 1)[1],
+                original_claude.split(b"\n", 1)[1],
+            )
             original_codex = original_snapshot["AGENTS.md"][1]
             new_codex = new_snapshot["AGENTS.md"][1]
-            self.assertEqual(new_codex.split(b"\n", 1)[1], original_codex.split(b"\n\n", 1)[1])
+            self.assertEqual(
+                new_codex.split(b"\n", 1)[1],
+                original_codex.split(b"\n", 1)[1],
+            )
 
     def test_install_lists_exact_step_names(self) -> None:
         result = subprocess.run(

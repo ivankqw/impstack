@@ -748,8 +748,8 @@ class SkillsSyncTests(unittest.TestCase):
             "SHARED_SKILLS": "relative/skills",
             "SKILLS_LOCK_FILE": "relative/state/lock.json",
         }
-        expected_shared = (repo / "relative/skills").resolve()
-        expected_lock = (repo / "relative/state/lock.json").resolve()
+        expected_shared = (home / "relative/skills").resolve()
+        expected_lock = (home / "relative/state/lock.json").resolve()
 
         shared = self.run_cli(repo, home, "resolve-shared", path=str(fakebin), env_overrides=overrides)
         lock = self.run_cli(repo, home, "resolve-lock", path=str(fakebin), env_overrides=overrides)
@@ -759,6 +759,18 @@ class SkillsSyncTests(unittest.TestCase):
         self.assertEqual(lock.stdout.strip(), str(expected_lock))
         self.assertIn(str(expected_shared), schedule.stdout)
         self.assertIn(str(expected_lock), schedule.stdout)
+
+        empty_shared = self.run_cli(
+            repo,
+            home,
+            "resolve-shared",
+            path=str(fakebin),
+            env_overrides={"SHARED_SKILLS": ""},
+        )
+        self.assertEqual(
+            empty_shared.stdout.strip(),
+            str(home / ".agents/skills"),
+        )
 
     def test_relative_xdg_state_home_uses_one_resolved_path(self) -> None:
         _, home = self.make_home()
@@ -770,12 +782,12 @@ class SkillsSyncTests(unittest.TestCase):
             executable = fakebin / name
             executable.write_text("#!/bin/sh\n")
             executable.chmod(0o755)
-        expected_xdg = (repo / "relative-state").resolve()
+        expected_xdg = (home / "relative-state").resolve()
         overrides = {
             "XDG_STATE_HOME": "relative-state",
             "SKILLS_LOCK_FILE": "relative-config/lock.json",
         }
-        expected_lock = (repo / "relative-config/lock.json").resolve()
+        expected_lock = (home / "relative-config/lock.json").resolve()
 
         lock = self.run_cli(repo, home, "resolve-lock", path=str(fakebin), env_overrides=overrides)
         schedule = self.run_cli(repo, home, "schedule", path=str(fakebin), env_overrides=overrides)
@@ -789,6 +801,21 @@ class SkillsSyncTests(unittest.TestCase):
             (expected_xdg / "skills/.skill-lock.json").resolve(strict=False),
             expected_lock,
         )
+
+    def test_relative_skill_state_path_cannot_escape_home(self) -> None:
+        _, home = self.make_home()
+        repo = pathlib.Path(tempfile.mkdtemp())
+        self.addCleanup(lambda: shutil.rmtree(repo))
+
+        result = self.run_cli(
+            repo,
+            home,
+            "resolve-shared",
+            env_overrides={"SHARED_SKILLS": "../outside"},
+        )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("relative user-state path escapes home", result.stderr)
 
     def test_node_resolution_sorts_manager_versions_numerically(self) -> None:
         _, home = self.make_home()
