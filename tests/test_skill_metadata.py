@@ -2004,6 +2004,9 @@ class SkillMetadataTest(unittest.TestCase):
             (None, {"*": "ask"}),
             ({"bash": "deny"}, {"*": "ask", "bash": "deny"}),
             ({"*": "allow", "bash": "deny"}, {"*": "allow", "bash": "deny"}),
+            ("allow", "allow"),
+            ("ask", "ask"),
+            ("deny", "deny"),
         )
         for existing, expected in cases:
             with self.subTest(existing=existing), tempfile.TemporaryDirectory() as temp:
