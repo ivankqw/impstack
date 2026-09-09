@@ -1,0 +1,191 @@
+{
+  "version": 1,
+  "name": "reviewed-change",
+  "profiles": {
+    "caller-planner": {
+      "harness": "codex-app",
+      "transport": "native-codex-app",
+      "provider": "openai",
+      "model": "caller-supplied-planner-model",
+      "options": {
+        "harness_options": {
+          "effort": "caller-selected"
+        }
+      }
+    },
+    "herdr-planner": {
+      "harness": "codex-cli",
+      "transport": "herdr-cli",
+      "provider": "openai",
+      "model": "caller-supplied-planner-model",
+      "options": {
+        "harness_options": {
+          "effort": "caller-selected"
+        }
+      }
+    },
+    "native-implementer": {
+      "harness": "codex-app",
+      "transport": "native-codex-app",
+      "provider": "openai",
+      "model": "caller-supplied-implementation-model",
+      "options": {
+        "harness_options": {
+          "effort": "caller-selected"
+        },
+        "parallel": true
+      }
+    },
+    "native-alternate-implementer": {
+      "harness": "codex-app",
+      "transport": "native-codex-app",
+      "provider": "openai",
+      "model": "caller-supplied-alternate-model",
+      "options": {
+        "harness_options": {
+          "effort": "caller-selected"
+        },
+        "parallel": true
+      }
+    },
+    "herdr-implementer": {
+      "harness": "codex-cli",
+      "transport": "herdr-cli",
+      "provider": "openai",
+      "model": "caller-supplied-implementation-model",
+      "options": {
+        "harness_options": {
+          "effort": "caller-selected"
+        },
+        "parallel": true
+      }
+    },
+    "herdr-opencode-implementer": {
+      "harness": "opencode",
+      "transport": "herdr-cli",
+      "provider": "caller-supplied-provider",
+      "model": "caller-supplied-alternate-model",
+      "options": {
+        "provider_options": {
+          "reasoning_effort": "caller-selected"
+        }
+      }
+    },
+    "caller-reviewer": {
+      "harness": "codex-app",
+      "transport": "native-codex-app",
+      "provider": "openai",
+      "model": "caller-supplied-reviewer-model",
+      "options": {
+        "harness_options": {
+          "effort": "caller-selected"
+        },
+        "fresh_context": true
+      }
+    },
+    "herdr-reviewer": {
+      "harness": "claude-code",
+      "transport": "herdr-cli",
+      "provider": "anthropic",
+      "model": "caller-supplied-reviewer-model",
+      "options": {
+        "harness_options": {
+          "effort": "caller-selected"
+        },
+        "fresh_context": true
+      }
+    }
+  },
+  "recipes": {
+    "reviewed-change": {
+      "roles": [
+        "orchestrator",
+        "implementer",
+        "reviewer"
+      ],
+      "steps": [
+        {
+          "id": "write-brief",
+          "role": "orchestrator"
+        },
+        {
+          "id": "implement",
+          "role": "implementer"
+        },
+        {
+          "id": "review",
+          "role": "reviewer"
+        },
+        {
+          "id": "prepare-draft-pr",
+          "role": "orchestrator"
+        }
+      ],
+      "invariants": [
+        "review_independence",
+        "isolated_workspace",
+        "recorded_evidence",
+        "operator_release"
+      ]
+    }
+  },
+  "assignments": {
+    "native": {
+      "recipe": "reviewed-change",
+      "transport": "native-codex-app",
+      "roles": {
+        "orchestrator": "caller-planner",
+        "implementer": "native-implementer",
+        "reviewer": "caller-reviewer"
+      }
+    },
+    "native-alternate-implementer": {
+      "recipe": "reviewed-change",
+      "transport": "native-codex-app",
+      "roles": {
+        "orchestrator": "caller-planner",
+        "implementer": "native-alternate-implementer",
+        "reviewer": "caller-reviewer"
+      }
+    },
+    "herdr": {
+      "recipe": "reviewed-change",
+      "transport": "herdr-cli",
+      "roles": {
+        "orchestrator": "herdr-planner",
+        "implementer": "herdr-implementer",
+        "reviewer": "herdr-reviewer"
+      }
+    },
+    "hybrid": {
+      "recipe": "reviewed-change",
+      "transport": "hybrid",
+      "roles": {
+        "orchestrator": "caller-planner",
+        "implementer": "herdr-implementer",
+        "reviewer": "caller-reviewer"
+      }
+    },
+    "hybrid-opencode": {
+      "recipe": "reviewed-change",
+      "transport": "hybrid",
+      "roles": {
+        "orchestrator": "caller-planner",
+        "implementer": "herdr-opencode-implementer",
+        "reviewer": "caller-reviewer"
+      }
+    }
+  },
+  "modules": {
+    "optional": [
+      {
+        "name": "context7",
+        "description": "Optional documentation lookup declared for the caller."
+      },
+      {
+        "name": "issue-tracker",
+        "description": "Optional issue updates declared for the caller."
+      }
+    ]
+  }
+}

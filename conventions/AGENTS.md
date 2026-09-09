@@ -68,8 +68,6 @@ somewhere else, put it in the private layer.
 
 ## Roles and configs
 
-Three roles do the work, and which model fills each one is a named choice, not a per-task decision.
-
 - **Orchestrator** holds the plan and the decisions. Spend here.
 - **Implementer** builds to an explicit brief in a fresh context, in parallel. Throughput matters
   more than depth, because the brief carries the thinking.
@@ -89,9 +87,10 @@ context, then a same-vendor pass. Declare the rung in the PR. One lucky self-pro
 same-weights review. Do not kill a build mid-flight to switch vendor; the new vendor takes the next
 role.
 
-`default` uses Claude Code for orchestration, Codex in Herdr for implementation, and a fresh Sonnet
-subagent for review. Never use Opus for a Claude subagent. Use `single-vendor` only when Claude is
-unavailable. Keep its reviewer on a different Codex model from the author.
+Where active instructions permit, a selected factory plan supersedes legacy preset examples.
+Active instructions and permission policy still apply; report conflicts before dispatch.
+Record the selected config and any fallback. Verify harness capabilities before dispatch.
+Never silently replace a selected model or weaken review independence.
 
 ## Review before pushing
 
@@ -102,7 +101,7 @@ No diff exempts itself from a lane: "docs-only", "just a rename", "I already val
 author grading their own work. A crash does not skip the gate either. Name any lane that did not
 run, and why. Stop a review loop out loud when a round has no independent signal left.
 
-- **Defects and test quality.** Dispatch the `reviewer` reviewer as a new Sonnet agent that starts
+- **Defects and test quality.** Dispatch the selected reviewer profile as a fresh agent that starts
   with no memory of this conversation. A mechanism that shares
   this session's context inherits the author's blind spots along with it. In Claude Code that means
   never dispatching it as a fork.

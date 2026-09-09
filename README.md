@@ -1,84 +1,75 @@
 # impstack
 
-impstack, imperfect operator.
+**Composable recipes for your code factory.**
 
-**This is my opinionated blueprint for a personal code factory.** I connect its order book,
-workstations, review lanes, release, and retro in one line.
+Impstack defines how agents receive work, isolate changes, report evidence, and review each other.
+Choose agent profiles independently of the workflow. Use native Codex app tools, terminal agents
+through Herdr, or an app coordinator with terminal implementation lanes.
 
-**I am the imperfect part it is designed around.** I add hand-off points and explanation gates where
-speed tempts me to accept work that I have stopped following.
+The harness owns execution, permissions, authentication, and context. Impstack supplies configuration
+validation and task handoffs. It does not start a replacement agent runtime.
 
-## install
+The name comes from "imperfect operator." Human review and release decisions remain part of the method.
+Backpass is an optional source of corrections, alongside other retrospective tools.
+
+## Get started
+
+- [Configure a factory and validate its handoffs](docs/FACTORY.md).
+- [Understand the architecture and its boundaries](docs/HOW-IT-WORKS.md).
+- [Install the existing personal preset](docs/INSTALL.md).
+
+The factory CLI runs from this checkout with Python and its standard library.
+The existing bootstrap installs the personal skill and harness preset.
+Factory module declarations do not change that bootstrap.
 
 ```bash
-git clone https://github.com/ivankqw/agents-cfg.git ~/agents-cfg
-~/agents-cfg/bootstrap.sh
+git clone https://github.com/ivankqw/impstack.git ~/impstack
+cd ~/impstack
+bin/factory --help
 ```
 
-## get started
-
-1. [Install the setup and run the harness canaries](docs/INSTALL.md).
-2. [Choose a model config for the harness that owns the session](configs/README.md).
-3. [Give the agent an issue and choose a pstack workflow](docs/HOW-IT-WORKS.md).
-
-## the factory floor
+## Shared method, replaceable tools
 
 ```mermaid
-flowchart LR
-    LI["Linear<br/>order book<br/>issues and maps"] --> HE["Herdr<br/>the floor<br/>Codex lanes in panes"]
-    HE --> WT["Worktree pool<br/>workstations<br/>wt + treehouse<br/>seeded and torn down"]
-    WT --> DL
-    WT --> SL
-    subgraph QA["QA: two review lanes"]
-        direction TB
-        DL["Fresh Sonnet<br/>default defects lane"]
-        SL["Standards and spec lane"]
-    end
-    DL --> MR["Merge and release<br/>operator tags"]
-    SL --> MR
-    MR --> RE["backpass / reflect<br/>retro<br/>transcript findings<br/>operator-gated convention and skill edits"]
-    RE --> OP["Operator<br/>hand-off point<br/>explanation gates<br/>planned"]
-    HA["Harness<br/>Claude Code or Codex<br/>Hermes experimental"] -. runs .-> HE
-    EX["Executor<br/>agent-connection catalogue"] -. supplies tools .-> HE
-    WB["Web tooling<br/>chrome-devtools-mcp"] -. supplies browser access .-> HE
-    MO["Report monitors<br/>sentinel watchers"] -. observes completion .-> HE
-    SK["Skills<br/>method cards<br/>pstack + Matt Pocock"] -. guide .-> HE
+flowchart TD
+    I[Issue and acceptance criteria] --> R[Workflow recipe]
+    P[Agent profiles and role assignments] --> H[Task handoffs]
+    R --> H
+    H --> N[Native Codex app tools]
+    H --> T[Herdr terminal agents]
+    T --> C[Claude Code / Codex CLI / OpenCode]
+    N --> E[Result and verification evidence]
+    C --> E
+    E --> V[Independent defect and standards review]
+    V --> D[Draft pull request]
+    D --> O[Authorized merge and operator release]
 ```
 
-| principle | station | tool | fixed or flexible | where configured |
-|---|---|---|---|---|
-| Start from an order | Order book | Linear issues and maps | Fixed | [`mcp/servers.json`](mcp/servers.json) and the private layer |
-| Keep implementation visible | Factory floor | Herdr with Codex lanes in panes | Fixed | Private layer |
-| Isolate each checkout | Workstations | Worktree pool with `wt` and treehouse, seeded and torn down | Fixed | Private layer |
-| Change the blind spots | QA | Fresh Sonnet default defects lane and standards/spec lane | Fixed | [`conventions/AGENTS.md`](conventions/AGENTS.md) and [`configs/`](configs/) |
-| Keep release judgment human | Merge and release | Operator tags | Fixed | Private layer |
-| Feed corrections back | Retro | backpass and `reflect` surface transcript findings for operator-gated convention and skill edits | Fixed | [`conventions/AGENTS.md`](conventions/AGENTS.md), [`pstack-revision.txt`](pstack-revision.txt), and the private layer |
-| Return control at junctions | Hand-off point | Operator explanation gates, planned | Fixed | Private layer |
-| Choose the runtime per environment | Supporting layer: harness | Claude Code or Codex; Hermes is experimental `[unverified]` | Flexible | [`configs/`](configs/), [`settings/`](settings/), and the private layer |
-| Carry one tool catalogue | Supporting layer: agent connections | Executor Cloud through MCP | Fixed | [`mcp/servers.json`](mcp/servers.json) |
-| Give lanes browser access | Supporting layer: web tooling | `chrome-devtools-mcp` | Flexible | [`skills/browser-tooling/`](skills/browser-tooling/) |
-| Observe lane completion | Supporting layer: report monitors | Report and pull-request sentinel watchers | Fixed | [`skills/lane-orchestration/`](skills/lane-orchestration/) |
-| Load the method when needed | Supporting layer: skills | pstack and Matt Pocock's skills | Fixed | [`pstack-revision.txt`](pstack-revision.txt), [`bootstrap.sh`](bootstrap.sh), and [`skills-catalog.json`](skills-catalog.json) |
+| Shared requirement | Replaceable choice |
+|---|---|
+| Explicit task and acceptance criteria | GitHub, Linear, or a local work record |
+| Isolated implementation and review workspaces | Harness worktrees or a worktree helper |
+| Recorded profile for each role | Harness, execution method, provider, model, and native options |
+| Independent review with executed evidence | Reviewer profile and review tools |
+| Durable task result with unresolved work | Native task tools or Herdr with report files |
+| Explicit merge authority and operator releases | Repository policy and deployment tooling |
+| Corrections remain reviewable | Backpass, reflect, or manual retrospective |
 
-## usage
+Model names are local choices. Validate them in the selected harness before dispatch.
+A valid factory config does not prove model availability or runtime readiness.
 
-I run these from my full machine setup. The portable bootstrap does not install the Herdr or
-[backpass](https://github.com/kunchenguid/backpass) runtimes. `[sourced: bootstrap.sh]`
+## Installation boundary
 
-```text
-herdr agent prompt codex "Take this lane's issue brief. Use the implement skill, then open a draft PR." --wait
-```
+The existing installer configures Claude Code and Codex instructions, skills, hooks, and MCP declarations.
+The OpenCode installer adapter is separate work in [the adapter pull request](https://github.com/ivankqw/impstack/pull/44).
+An OpenCode factory profile is a handoff declaration, not proof that its adapter is installed.
 
-I run the standards lane from Claude Code.
+Herdr enables the terminal execution path. Native app handoffs do not require Herdr.
+The existing bootstrap still restores the Herdr skill as part of the personal preset.
+It does not install the Herdr runtime.
 
-```text
-/code-review origin/main
-```
-
-```bash
-backpass scan --since 7d --strict
-backpass
-```
+See [factory configuration](docs/FACTORY.md) for the executable contract and
+[legacy model presets](configs/README.md) for the existing prose configurations.
 
 ## skills
 
@@ -89,6 +80,7 @@ I write a skill when no upstream skill covers the job.
 
 | skill | job |
 |---|---|
+| [`factory-workflow`](skills/factory-workflow/SKILL.md) | Execute selected profiles through native tools or Herdr with verified handoffs. |
 | [`cleanup-crew`](skills/cleanup-crew/SKILL.md) | Keep the issue tracker aligned with current work. |
 | [`commission`](skills/commission/SKILL.md) | Probe a machine, check its fixed contract, and write its local record. |
 | [`dogfood-local`](skills/dogfood-local/SKILL.md) | Run a local app and verify the real user path. |
@@ -121,7 +113,7 @@ I write a skill when no upstream skill covers the job.
 
 ## docs
 
-- [Thesis](docs/THESIS.md) explains the personal overfitting argument.
+- [Thesis](docs/THESIS.md) explains the code-factory direction and its boundaries.
 - [How it works](docs/HOW-IT-WORKS.md) explains each layer and its source file.
 - [Install](docs/INSTALL.md) installs, verifies, updates, and removes the setup.
 - [Credits](docs/CREDITS.md) names upstream authors, sources, and licenses.

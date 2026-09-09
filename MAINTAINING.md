@@ -11,6 +11,16 @@ fails quietly: the file sits on disk, nothing loads it, and no error appears.
 **Do not copy upstream skills into this repo.** Most skills come from other people's repos and are
 managed by `npx skills`. A copy pins them to one commit and cuts them off from updates.
 
+## Change factory configuration
+
+Keep the profile and task contracts in `scripts/factory.py`.
+Use the factory examples and `tests/test_factory.py` to verify a recipe with different role assignments.
+Keep native app handoffs separate from terminal execution. Do not add guessed runtime APIs or model flags.
+
+Update `docs/FACTORY.md` and `skills/factory-workflow/SKILL.md` when a CLI or record field changes.
+Check conventions, pstack routing defaults, and review reminders for conflicting model-selection instructions.
+The legacy YAML presets and installer retain their own behavior unless a change explicitly migrates them.
+
 ## Add a skill I wrote
 
 1. Write `skills/<name>/SKILL.md`. Frontmatter needs `name` and `description`.

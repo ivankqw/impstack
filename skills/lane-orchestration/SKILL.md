@@ -8,6 +8,9 @@ description: >-
 
 # Orchestrate lanes
 
+For a selected factory config, follow [factory-workflow](../factory-workflow/SKILL.md) instead of the steps below.
+Its profiles control execution and model selection. The remaining steps describe the legacy personal preset.
+
 Run each implementation task in its own worktree and Herdr pane. Use your worktree helper so the
 worktree receives its required local configuration.
 
@@ -19,7 +22,7 @@ worktree receives its required local configuration.
   found the defect.
 - Mutate one layer at a time. Remove the app check alone, then the database constraint alone. A test
   that fails only when both are absent proves neither layer.
-- A lane is done only after it pushes the branch and opens the draft pull request. Require a
+- After both reviews pass, push the branch and open the draft pull request. Require a
   one-line pull-request URL sentinel file. Lanes have written reports without pushing or opening a
   pull request.
 - Monitor report and sentinel files with a persistent monitor. Shell sleep loops die with sessions.
@@ -38,8 +41,9 @@ Create one brief file per ticket. Put these parts in the file:
 4. Name the report path.
 5. Name a separate pull-request URL sentinel path.
 
-Tell the lane to write only the pull-request URL into the sentinel file. A report without a pushed
-branch and a draft pull request is incomplete.
+Tell the lane to report the implementation commit before review.
+After both reviews pass, push and open the draft pull request.
+Write only the pull-request URL into the sentinel file.
 
 ## Start a Codex pane
 
@@ -78,14 +82,14 @@ harness timeout detached and write their output to a log file.
 
 ## Review and fix
 
-Dispatch a fresh reviewer against the pushed SHA. Give the reviewer a throwaway worktree pinned to
+Dispatch a fresh reviewer against the implementation SHA. Give the reviewer a throwaway worktree pinned to
 that SHA. The reviewer must leave the shared checkout untouched and revert every probe.
 
 If review finds a defect, write a fix brief for the implementation lane. Resume the same reviewer
 with the new SHA after the fix. Require the reviewer to rerun its probes.
 
-Run the standards and specification review against the same fixed point. Do not merge until both
-review lanes approve.
+Run the standards and specification review against the same fixed point.
+Push and open the draft pull request only after both review lanes approve.
 
 ## Merge and clean up
 

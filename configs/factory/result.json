@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "kind": "factory-result",
+  "task_id": "issue-45",
+  "worktree": "<caller-supplied-worktree>",
+  "base_commit": "<caller-supplied-base-commit>",
+  "actual_commit": "",
+  "status": "incomplete",
+  "evidence": [
+    {
+      "command": [
+        "bin/factory",
+        "plan",
+        "configs/factory/reviewed-change.json",
+        "--assignment",
+        "hybrid"
+      ],
+      "exit_code": 0,
+      "output": "<caller-recorded-output>"
+    }
+  ],
+  "unresolved_work": [
+    "Replace placeholders with the caller's worktree and commit."
+  ],
+  "artifacts": [
+    "<caller-recorded-artifact>"
+  ],
+  "recipe": "reviewed-change",
+  "assignment": "hybrid",
+  "transport": "hybrid",
+  "roles": {
+    "orchestrator": "caller-planner",
+    "implementer": "herdr-implementer",
+    "reviewer": "caller-reviewer"
+  }
+}

@@ -1,17 +1,34 @@
 # How the setup works
 
-I use one repository to shape two agent harnesses. Claude Code and Codex have different instruction
-and extension systems, so `install.sh` gives both harnesses the same working method. The design keeps
-stable rules in a small convention file and loads detailed procedures as skills.
+Impstack separates the workflow from the agents that execute it.
+A recipe defines the handoffs and review requirements. A factory config assigns agent profiles to roles.
+The selected harness supplies tools, permissions, context controls, and session lifecycle.
 
-## The base model supplies general capability
+## Profiles and execution paths
 
-I treat a harness and its selected model as one base model. The harness supplies the work loop,
-tools, context controls, permissions, and memory. The model supplies language and judgment. I can
-change either part without rewriting the rest of this repository.
+A profile names a harness, execution method, provider, model, and native options.
+The role assignment selects a profile without changing the recipe.
+The factory CLI validates these declarations and produces a plan for the calling agent.
+See [the factory contract](FACTORY.md) for commands and examples.
 
-`configs/default.yaml` describes the Claude Code arrangement. `configs/single-vendor.yaml` describes
-the no-Claude fallback. The config selects models for roles, while the harness owns execution.
+Native Codex app plans are handoffs to tools available in the current app session.
+They do not imply a public dispatch API or guaranteed model-selection support.
+Herdr plans are handoffs for terminal agents using Claude Code, Codex CLI, or OpenCode.
+A hybrid configuration uses an app coordinator and Herdr implementation lanes.
+
+Active instructions and permission policy remain authoritative.
+If the selected profile conflicts with them, report the conflict before dispatch.
+A plan does not install a harness, authenticate a provider, or grant permission to merge.
+
+## Shared contracts and optional integrations
+
+The task brief records the requested work. The result records what happened and what remains unresolved.
+Verification evidence must be checked against the acceptance criteria.
+A valid result file proves its structure, not the truth of its contents.
+
+Tracking, MCP connections, browser tools, and retrospective tools are replaceable integrations.
+Module declarations record choices; the factory CLI does not provision them.
+The existing bootstrap still installs the personal preset described below.
 
 ## Conventions set the default method
 
@@ -69,18 +86,18 @@ uses a different OpenAI model when Codex holds every role.
 The default config dispatches the reviewer as a fresh Claude Sonnet subagent. The reviewer receives
 the repository path and diff range, but none of the author's conversation context.
 
-## Configs make role choices explicit
+## Factory configs and legacy presets
 
-A config assigns a harness, model, and effort to each role. `configs/default.yaml` and
-`configs/single-vendor.yaml` hold those choices. `configs/README.md` explains when to use each
-config.
+[Factory configurations](FACTORY.md) are consumed by `bin/factory`.
+They separate profile definitions from role assignments and a shared recipe.
 
-Named configs turn several model choices into one operator decision. They expose compromises.
-For example, `configs/single-vendor.yaml` marks its reviewer as `cross_vendor: false` and requires a
-different model with no shared context.
+The existing YAML files under `configs/` describe personal presets for an agent to read.
+The installer does not parse them into a factory plan.
+`configs/README.md` distinguishes those presets from executable configuration.
 
-`configs/pstack-codex.md` maps pstack roles to confirmed Codex model names. `install.sh` appends that
-file to the generated Codex instructions and links it at `~/.codex/pstack-models.md`.
+`configs/pstack-codex.md` supplies fallback model routing for pstack.
+The installer appends that file to generated Codex instructions.
+A selected factory profile takes precedence over those routing defaults, subject to active instructions.
 
 ## Hooks fire on configured events
 
@@ -88,7 +105,7 @@ The model decides whether to load a skill. A hook does not depend on that decisi
 a hook when a configured event matches.
 
 `hooks/review_reminder.py` adds advice before a shell command that contains `git push`. It asks the
-operator to dispatch the Sonnet reviewer as a fresh subagent. `hooks/cleanup_crew_after_pr.py` adds
+operator to dispatch the selected reviewer profile with fresh context. `hooks/cleanup_crew_after_pr.py` adds
 tracker advice after a pull request opens. Both hooks catch errors and exit without blocking work.
 
 `install.sh` links each hook into `~/.claude/hooks` and `~/.codex/hooks`. It does not edit harness
@@ -121,14 +138,16 @@ and an upstream skill can improve without losing its source history.
 
 | Term | Meaning |
 |---|---|
-| Base model | The harness and selected model treated as one starting system. |
+| Profile | A named harness, execution method, provider, model, and native options. |
 | Harness | The program that runs the model, supplies tools, manages context, and controls the work loop. |
 | Convention | A rule that every session receives through an instruction file. |
 | Skill | A Markdown procedure that an agent loads for a matching task. |
 | Fat skill | A skill with enough examples, constraints, and failure cases to guide judgment. |
 | Own skill | A skill maintained in this repository under `skills/`. |
 | Upstream skill | A skill maintained elsewhere and recorded in `skills-catalog.json` or `pstack-revision.txt`. |
-| Config | A named set of model and effort choices for each role. |
+| Factory config | Profile definitions and role assignments used with a workflow recipe. |
+| Recipe | Shared task handoffs and review requirements. |
+| Transport | The declared execution method used by the calling agent. |
 | Role | One responsibility in a stretch of agent work. |
 | Orchestrator | The role that holds the plan and makes decisions. |
 | Implementer | The role that builds from an explicit brief. |
