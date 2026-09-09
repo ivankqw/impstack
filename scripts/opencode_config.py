@@ -200,6 +200,21 @@ def add_instructions(config: dict[str, Any], instructions: pathlib.Path) -> None
         config["instructions"] = [*existing, target]
 
 
+def add_primary_permissions(config: dict[str, Any]) -> None:
+    existing = config.get("permission", {})
+    if not isinstance(existing, dict):
+        raise OpenCodeConfigError("invalid OpenCode config: permission must be an object")
+    if "*" not in existing:
+        config["permission"] = {"*": "ask", **existing}
+
+
+def add_primary_config(
+    config: dict[str, Any], instructions: pathlib.Path
+) -> None:
+    add_instructions(config, instructions)
+    add_primary_permissions(config)
+
+
 def environment_name(value: Any, field: str) -> str:
     if not isinstance(value, str) or re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", value) is None:
         raise OpenCodeConfigError(f"invalid MCP catalog: {field} must name an environment variable")
@@ -375,7 +390,7 @@ def main(argv: list[str]) -> int:
         update_config(
             args.home,
             environment,
-            lambda config: add_instructions(config, args.source),
+            lambda config: add_primary_config(config, args.source),
         )
     elif args.command == "skills":
         link_skills(args.home, environment, args.shared)
