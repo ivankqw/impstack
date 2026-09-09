@@ -77,15 +77,20 @@ export PRIVATE_CONFIG="$HOME/path/to/private-agent-config"
 `install.sh` reads `AGENTS.md`, `skills/`, and `bin/` from the private layer when those paths exist.
 Do not put credentials in either repository.
 
-## Merge harness settings
+## Merge Claude Code and Codex settings
 
-The installer leaves harness settings under your control. Merge these templates by hand:
+Claude Code and Codex settings templates remain under operator control.
+The installer does not merge these templates. Merge them by hand:
 
 - `settings/settings.template.json` into `~/.claude/settings.json`
 - `settings/codex.config.template.toml` into `~/.codex/config.toml`
 
 Replace `HOME_PATH` in the Codex template with your home directory. Restart the harness after you
 change its settings.
+
+OpenCode has a different ownership boundary.
+The installer manages OpenCode instructions, MCP servers, and permissions in the global config.
+`[sourced: install.sh, scripts/opencode_config.py]`
 
 ## Verify Claude Code
 
