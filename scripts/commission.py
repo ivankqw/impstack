@@ -78,6 +78,7 @@ class CommandEvidence:
     exit_code: int | None
     stdout: str
     stderr: str
+    canary_error: str | None = None
 
 
 @dataclasses.dataclass(frozen=True)
@@ -406,23 +407,29 @@ def _safe_output(text: str, assertion_id: str) -> str:
     return " | ".join(lines[-3:])[:600]
 
 
-def _json_canary_output(text: str) -> str:
+def _json_canary_output(text: str) -> tuple[str, str | None]:
     parts: list[str] = []
+    errors: list[str] = []
     for line in text.splitlines():
         try:
             event = json.loads(line)
         except json.JSONDecodeError:
-            return ""
-        if not isinstance(event, dict) or event.get("type") != "text":
+            return "", None
+        if not isinstance(event, dict):
+            continue
+        if event.get("type") == "error":
+            errors.append(json.dumps(event.get("error", event)))
+            continue
+        if event.get("type") != "text":
             continue
         part = event.get("part")
         if not isinstance(part, dict) or part.get("type") != "text":
-            return ""
+            return "", None
         value = part.get("text")
         if not isinstance(value, str):
-            return ""
+            return "", None
         parts.append(value)
-    return "".join(parts).strip()
+    return "".join(parts).strip(), "\n".join(errors) or None
 
 
 def _run(assertion: Assertion, context: Context) -> CommandEvidence:
@@ -445,15 +452,20 @@ def _run(assertion: Assertion, context: Context) -> CommandEvidence:
             timeout=20,
             check=False,
         )
+        if assertion.kind == "json-canary":
+            output, canary_error = _json_canary_output(completed.stdout)
+        else:
+            output, canary_error = completed.stdout, None
         return CommandEvidence(
             command=shlex.join(assertion.command),
             exit_code=completed.returncode,
-            stdout=(
-                _safe_output(_json_canary_output(completed.stdout), assertion.assertion_id)
-                if assertion.kind == "json-canary"
-                else _safe_output(completed.stdout, assertion.assertion_id)
-            ),
+            stdout=_safe_output(output, assertion.assertion_id),
             stderr=_safe_output(completed.stderr, assertion.assertion_id),
+            canary_error=(
+                _safe_output(canary_error, assertion.assertion_id)
+                if canary_error is not None
+                else None
+            ),
         )
     except (FileNotFoundError, subprocess.TimeoutExpired) as error:
         return CommandEvidence(
@@ -509,11 +521,16 @@ def evaluate(assertions: Sequence[Assertion], context: Context) -> Report:
             matches_output = actual == expected and all(
                 source.is_file() and resolver_call in source.read_text() for source in sources
             )
-        status = Status.PASS if matches_exit and matches_output else Status.FAIL
+        status = (
+            Status.FAIL
+            if evidence.canary_error is not None
+            else Status.PASS if matches_exit and matches_output else Status.FAIL
+        )
         if (
             assertion.kind in {"canary", "json-canary"}
             and matches_exit
             and not matches_output
+            and evidence.canary_error is None
             and output.strip() != "MISSING"
         ):
             status = Status.INDETERMINATE
@@ -545,6 +562,8 @@ def evaluate(assertions: Sequence[Assertion], context: Context) -> Report:
             message = "canary response was indeterminate"
         elif status is Status.NOT_APPLICABLE:
             message = assertion.absent_registration_reason or "not applicable"
+        elif evidence.canary_error is not None:
+            message = f"canary returned an error event: {evidence.canary_error}"
         elif not matches_exit:
             message = f"expected exit {assertion.exit_code}, got {evidence.exit_code}"
         elif assertion.kind == "shared-path":
