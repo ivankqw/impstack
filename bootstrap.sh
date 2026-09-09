@@ -8,6 +8,10 @@ REPO="${IMPSTACK_REPO:-https://github.com/ivankqw/impstack.git}"
 PSTACK_DIR="${PSTACK_DIR:-$HOME/.local/share/agent-plugins/pstack-claude}"
 PSTACK_REPO="${PSTACK_REPO:-https://github.com/michael-denyer/pstack-claude.git}"
 PRIVATE="${PRIVATE_CONFIG:-$HOME/agents-cfg-private}"
+WITH_HERDR=false
+for argument in "$@"; do
+  [ "$argument" = "--with-herdr" ] && WITH_HERDR=true
+done
 
 legacy_basename="agents""-cfg"
 legacy_dir="$HOME/$legacy_basename"
@@ -78,10 +82,12 @@ set -e
 if [ "$install_rc" -ne 0 ]; then
   exit "$install_rc"
 fi
-if ! python3 "$DEST/scripts/skill_metadata.py" require-skill-name \
-  "$SHARED_SKILLS/herdr/SKILL.md" herdr; then
-  echo "Herdr restore failed: invalid $SHARED_SKILLS/herdr/SKILL.md" >&2
-  exit 1
+if [ "$WITH_HERDR" = true ]; then
+  if ! python3 "$DEST/scripts/skill_metadata.py" require-skill-name \
+    "$SHARED_SKILLS/herdr/SKILL.md" herdr; then
+    echo "Herdr restore failed: invalid $SHARED_SKILLS/herdr/SKILL.md" >&2
+    exit 1
+  fi
 fi
 
 case ":$PATH:" in *":$HOME/.local/bin:"*) ;; *)

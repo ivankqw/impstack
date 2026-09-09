@@ -1,6 +1,6 @@
 # impstack agent entry
 
-This repository defines composable agent workflows and installs a personal Claude Code and Codex preset.
+This repository defines composable agent workflows and installs a personal Claude Code, Codex, and OpenCode preset.
 
 Read `docs/FACTORY.md` for factory configuration and task handoff contracts.
 

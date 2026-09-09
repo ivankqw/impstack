@@ -60,12 +60,12 @@ A valid factory config does not prove model availability or runtime readiness.
 
 ## Installation boundary
 
-The existing installer configures Claude Code and Codex instructions, skills, hooks, and MCP declarations.
-The OpenCode installer adapter is separate work in [the adapter pull request](https://github.com/ivankqw/impstack/pull/44).
-An OpenCode factory profile is a handoff declaration, not proof that its adapter is installed.
+The installer configures Claude Code, Codex, and OpenCode instructions, skills, and MCP declarations.
+It also links Claude Code and Codex hook files for operator registration.
+A factory profile declares a handoff. Commission the selected harness before you use it.
 
 Herdr enables the terminal execution path. Native app handoffs do not require Herdr.
-The existing bootstrap still restores the Herdr skill as part of the personal preset.
+Use `--with-herdr` when you install to restore the Herdr skill.
 It does not install the Herdr runtime.
 
 See [factory configuration](docs/FACTORY.md) for the executable contract and

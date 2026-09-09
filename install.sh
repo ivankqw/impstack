@@ -28,7 +28,7 @@ list_install_steps() {
 }
 
 print_install_help() {
-  echo "usage: ./install.sh [--no-harness] [--force] [--list|--help|<step>]"
+  echo "usage: ./install.sh [--no-harness] [--with-herdr] [--force] [--list|--help|<step>]"
   echo
   echo "A single step always runs preflight first."
   echo
@@ -44,13 +44,25 @@ run_install_step() {
   "$function_name"
 }
 
+harness_detected() {
+  local expected installed
+  expected="$1"
+  for installed in "${detected_harnesses[@]}"; do
+    [ "$installed" = "$expected" ] && return 0
+  done
+  return 1
+}
+
 selected_entry=""
 NO_HARNESS=false
+WITH_HERDR=false
 FORCE=false
 action=""
 for argument in "$@"; do
   if [ "$argument" = "--no-harness" ]; then
     NO_HARNESS=true
+  elif [ "$argument" = "--with-herdr" ]; then
+    WITH_HERDR=true
   elif [ "$argument" = "--force" ]; then
     FORCE=true
   elif [ -n "$action" ]; then
@@ -145,7 +157,10 @@ link() { # link <target> <linkname>
 }
 
 install_step_skills() {
-if ! "$AC/bin/skills-sync" install-missing; then
+local -a catalog_args
+catalog_args=()
+[ "$WITH_HERDR" = true ] && catalog_args+=(--with-herdr)
+if ! "$AC/bin/skills-sync" install-missing "${catalog_args[@]}"; then
   echo "  ! some cataloged skills could not be restored; continuing install" >&2
 fi
 for d in "$AC"/skills/*/; do
@@ -202,6 +217,9 @@ done
 for f in "$PSTACK_PROMPTS"/*.md; do
   link "$f" "$CODEX_DIR/prompts/$(basename "$f")"
 done
+if harness_detected opencode; then
+  python3 "$AC/scripts/opencode_config.py" --home "$HOME" skills --shared "$SHARED_SKILLS"
+fi
 }
 
 install_step_constraining() {
@@ -225,6 +243,10 @@ elif [ -e "$STALE_HOOK" ]; then
 fi
 for f in "$AC"/hooks/*;      do link "$f" "$CLAUDE_DIR/hooks/$(basename "$f")"; done
 for f in "$AC"/hooks/*;      do link "$f" "$CODEX_DIR/hooks/$(basename "$f")"; done
+if harness_detected opencode; then
+  python3 "$AC/scripts/opencode_config.py" --home "$HOME" reviewer \
+    --source "$AC/agents/reviewer.md"
+fi
 }
 
 install_step_bin() {
@@ -253,6 +275,10 @@ managed_args=(--root "$AC" --home "$HOME" --private "$PRIVATE")
 python3 "$AC/scripts/managed_instructions.py" "${managed_args[@]}" || instruction_status=$?
 link "$HOME/AGENTS.md" "$CODEX_DIR/AGENTS.md"
 link "$AC/configs/pstack-codex.md" "$CODEX_DIR/pstack-models.md"
+if harness_detected opencode; then
+  python3 "$AC/scripts/opencode_config.py" --home "$HOME" instructions \
+    --source "$HOME/AGENTS.md"
+fi
 return "$instruction_status"
 }
 
@@ -261,7 +287,14 @@ if [ -f "$AC/mcp/servers.json" ]; then
   local -a mcp_args
   mcp_args=("$AC/mcp/servers.json")
   if [ "${detected_harnesses[0]+present}" = present ]; then
-    mcp_args+=("${detected_harnesses[@]}")
+    for harness in "${detected_harnesses[@]}"; do
+      [ "$harness" = opencode ] || mcp_args+=("$harness")
+    done
+  fi
+  if harness_detected opencode; then
+    echo "  writing OpenCode MCP config directly because opencode mcp add is interactive"
+    python3 "$AC/scripts/opencode_config.py" --home "$HOME" mcp \
+      --servers "$AC/mcp/servers.json"
   fi
   python3 - "${mcp_args[@]}" <<'PY'
 import json, os, subprocess, sys
@@ -304,12 +337,9 @@ for s in json.load(open(sys.argv[1]))["servers"]:
     url = os.environ.get(s["url_env"]) if "url_env" in s else s["url"]
     env = s.get("header_env")
     for harness in harnesses:
-      label = {"claude": "Claude", "codex": "Codex", "opencode": "OpenCode"}[harness]
+      label = {"claude": "Claude", "codex": "Codex"}[harness]
       if not url:
         print(f"  skipped {name} for {label}: ${s['url_env']} not set")
-        continue
-      if harness == "opencode":
-        print(f"  unsupported {name} for OpenCode: MCP add is interactive only")
         continue
       if harness == "claude":
         if env and not os.environ.get(env):
@@ -457,7 +487,10 @@ fi
 }
 
 install_step_validating_catalog() {
-"$AC/bin/skills-sync" check
+local -a catalog_args
+catalog_args=()
+[ "$WITH_HERDR" = true ] && catalog_args+=(--with-herdr)
+"$AC/bin/skills-sync" check "${catalog_args[@]}"
 }
 
 if [ -z "$action" ]; then

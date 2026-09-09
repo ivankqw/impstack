@@ -601,14 +601,6 @@
         "statuses": [
           "fail"
         ]
-      },
-      "absent_registration": {
-        "status": "not-applicable",
-        "reason": "install.sh cannot register context7 for OpenCode because MCP add is interactive.",
-        "exit_codes": [
-          0
-        ],
-        "requires_stdout_without_expected": true
       }
     },
     {
@@ -637,14 +629,6 @@
         "statuses": [
           "fail"
         ]
-      },
-      "absent_registration": {
-        "status": "not-applicable",
-        "reason": "install.sh cannot register exa for OpenCode because MCP add is interactive.",
-        "exit_codes": [
-          0
-        ],
-        "requires_stdout_without_expected": true
       }
     },
     {
@@ -673,14 +657,6 @@
         "statuses": [
           "fail"
         ]
-      },
-      "absent_registration": {
-        "status": "not-applicable",
-        "reason": "install.sh cannot register linear-server for OpenCode because MCP add is interactive.",
-        "exit_codes": [
-          0
-        ],
-        "requires_stdout_without_expected": true
       }
     },
     {
@@ -716,14 +692,6 @@
           "fail",
           "not-applicable"
         ]
-      },
-      "absent_registration": {
-        "status": "not-applicable",
-        "reason": "install.sh cannot register executor for OpenCode because MCP add is interactive.",
-        "exit_codes": [
-          0
-        ],
-        "requires_stdout_without_expected": true
       }
     },
     {

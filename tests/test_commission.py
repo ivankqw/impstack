@@ -213,6 +213,61 @@ class CommissionTests(unittest.TestCase):
         self.assertIn("lark-*", patterns)
         self.assertIn("machine-*", patterns)
 
+    def test_catalog_contract_does_not_require_herdr_until_selected(self) -> None:
+        repo = self.sandbox / "catalog-contract-repo"
+        home = self.sandbox / "catalog-contract-home"
+        shared = home / ".agents" / "skills"
+        repo.mkdir()
+        shared.mkdir(parents=True)
+        (shared / "alpha").mkdir()
+        (shared / "alpha" / "SKILL.md").write_text(
+            "---\nname: alpha\ndescription: Test skill.\n---\n"
+        )
+        entries = {
+            name: {
+                "source": f"example/{name}",
+                "sourceType": "github",
+                "sourceUrl": f"https://example.test/{name}.git",
+                "skillPath": "SKILL.md",
+            }
+            for name in ("alpha", "herdr")
+        }
+        (repo / "skills-catalog.json").write_text(
+            json.dumps({"skills": entries}, indent=2) + "\n"
+        )
+        assertion = next(
+            item
+            for item in json.loads(CONTRACT.read_text())["assertions"]
+            if item["id"] == "skills.check"
+        )
+        command = [str(ROOT / assertion["command"][0]), *assertion["command"][1:]]
+        environment = self.environment(
+            HOME=str(home),
+            SHARED_SKILLS=str(shared),
+            IMPSTACK_DIR=str(repo),
+        )
+
+        default = subprocess.run(
+            command,
+            cwd=repo,
+            env=environment,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        selected = subprocess.run(
+            [*command, "--with-herdr"],
+            cwd=repo,
+            env=environment,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+
+        self.assertEqual(default.returncode, 0, default.stderr + default.stdout)
+        self.assertNotEqual(selected.returncode, 0)
+        self.assertIn("missing catalog skill: herdr", selected.stdout)
+
     def test_harness_canaries_run_outside_the_repo(self) -> None:
         result = self.run_commission("check", "--format", "json")
 
@@ -312,6 +367,64 @@ class CommissionTests(unittest.TestCase):
         self.assertEqual(assertion.command[0:4], ("opencode", "run", "--format", "json"))
         self.assertEqual(report.results[0].status, commission_module.Status.PASS)
 
+    def test_opencode_json_canary_reports_a_hedge_as_indeterminate(self) -> None:
+        self.write_executable(
+            self.fakebin / "opencode",
+            textwrap.dedent(
+                """\
+                if [[ "$*" == *"--format json"* ]]; then
+                  printf '%s\n' '{"type":"text","part":{"type":"text","text":"I cannot confirm whether the phrase is loaded."}}'
+                fi
+                """
+            ),
+        )
+        assertion = next(
+            item
+            for item in commission_module.load_contract(CONTRACT)
+            if item.assertion_id == "harness.opencode.canary"
+        )
+        outside = self.sandbox / "outside"
+        outside.mkdir()
+        context = commission_module.Context(
+            self.repo, self.home, self.environment(), outside
+        )
+
+        report = commission_module.evaluate((assertion,), context)
+
+        self.assertEqual(report.results[0].status, commission_module.Status.INDETERMINATE)
+        self.assertEqual(
+            report.results[0].message,
+            "canary response was indeterminate",
+        )
+
+    def test_opencode_json_canary_reports_an_error_event_as_failure(self) -> None:
+        self.write_executable(
+            self.fakebin / "opencode",
+            textwrap.dedent(
+                """\
+                if [[ "$*" == *"--format json"* ]]; then
+                  printf '%s\n' '{"type":"error","error":{"name":"ProviderAuthError","message":"Authentication required"}}'
+                fi
+                """
+            ),
+        )
+        assertion = next(
+            item
+            for item in commission_module.load_contract(CONTRACT)
+            if item.assertion_id == "harness.opencode.canary"
+        )
+        outside = self.sandbox / "outside"
+        outside.mkdir()
+        context = commission_module.Context(
+            self.repo, self.home, self.environment(), outside
+        )
+
+        result = commission_module.evaluate((assertion,), context).results[0]
+
+        self.assertEqual(result.status, commission_module.Status.FAIL)
+        self.assertIn("ProviderAuthError", result.message)
+        self.assertIn("Authentication required", result.message)
+
     def test_contract_covers_each_declared_mcp_server_for_each_harness(self) -> None:
         contract = json.loads(CONTRACT.read_text())
         servers = json.loads((ROOT / "mcp" / "servers.json").read_text())["servers"]
@@ -382,13 +495,7 @@ class CommissionTests(unittest.TestCase):
         self.assertNotIn('stage "Executor connection"', wizard.read_text())
 
     def test_unsupported_absent_mcp_is_not_applicable_with_reason(self) -> None:
-        unsupported = (
-            "mcp.context7.codex",
-            "mcp.context7.opencode",
-            "mcp.exa.opencode",
-            "mcp.linear-server.opencode",
-            "mcp.executor.opencode",
-        )
+        unsupported = ("mcp.context7.codex",)
         result = self.run_commission(
             "check",
             "--format",
@@ -420,23 +527,54 @@ class CommissionTests(unittest.TestCase):
         ):
             self.assertEqual(report[assertion_id]["status"], "fail")
 
-    def test_opencode_absence_blocks_declare_positive_listing_signal(self) -> None:
+    def test_opencode_mcp_listing_matches_complete_ansi_stdout(self) -> None:
+        self.write_executable(
+            self.fakebin / "opencode",
+            textwrap.dedent(
+                """\
+                case "${1:-}" in
+                  --version) printf 'opencode 1.2.3\n' ;;
+                  auth) printf 'authenticated\n' ;;
+                  mcp)
+                    printf '\033[1mMCP servers\033[0m\n'
+                    printf '\033[32m●\033[0m context7 connected\n'
+                    printf '\033[32m●\033[0m exa connected\n'
+                    printf '\033[32m●\033[0m linear-server connected\n'
+                    printf '\033[32m●\033[0m executor connected\n'
+                    printf '4 configured servers\n'
+                    printf 'Configuration loaded successfully\n'
+                    printf '\n'
+                    ;;
+                  *) printf '%s\n' '{"type":"text","part":{"type":"text","text":"LOADED"}}' ;;
+                esac
+                """
+            ),
+        )
+
+        result = self.run_commission("check", "--format", "json")
+
+        report = {
+            item["id"]: item for item in json.loads(result.stdout)["assertions"]
+        }
+        for assertion_id in (
+            "mcp.context7.opencode",
+            "mcp.exa.opencode",
+            "mcp.linear-server.opencode",
+            "mcp.executor.opencode",
+        ):
+            self.assertEqual(report[assertion_id]["status"], "pass")
+
+    def test_opencode_mcp_entries_have_no_unsupported_registration_boundary(self) -> None:
         contract = json.loads(CONTRACT.read_text())
         assertions = (
             item
             for item in contract["assertions"]
             if item["id"].endswith(".opencode")
-            and "absent_registration" in item
+            and item["id"].startswith("mcp.")
         )
 
         for assertion in assertions:
-            absent = assertion["absent_registration"]
-            self.assertIs(
-                absent.get("requires_stdout_without_expected"),
-                True,
-                assertion["id"],
-            )
-            self.assertNotIn("requires_missing_stdout", absent, assertion["id"])
+            self.assertNotIn("absent_registration", assertion, assertion["id"])
 
     def test_generic_codex_failure_is_not_treated_as_missing_context7(self) -> None:
         self.write_executable(self.fakebin / "codex", "exit 1\n")

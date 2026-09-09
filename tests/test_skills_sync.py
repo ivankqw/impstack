@@ -223,6 +223,20 @@ class SkillsSyncTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("missing catalog skill: missing", result.stdout)
 
+    def test_check_skips_herdr_until_selected(self) -> None:
+        _, home = self.make_home()
+        repo = pathlib.Path(tempfile.mkdtemp())
+        self.addCleanup(lambda: shutil.rmtree(repo))
+        self.write_catalog(repo, {"herdr": self.skill_entry("herdr")})
+        (home / ".agents" / "skills").mkdir(parents=True)
+
+        default = self.run_cli(repo, home, "check")
+        selected = self.run_cli(repo, home, "check", "--with-herdr")
+
+        self.assertEqual(default.returncode, 0, default.stderr + default.stdout)
+        self.assertNotEqual(selected.returncode, 0)
+        self.assertIn("missing catalog skill: herdr", selected.stdout)
+
     def test_check_detects_extra_installer_managed_folder(self) -> None:
         _, home = self.make_home()
         repo = pathlib.Path(tempfile.mkdtemp())
@@ -588,6 +602,74 @@ class SkillsSyncTests(unittest.TestCase):
             "--yes skills add example/alpha --skill alpha -g -y\n",
         )
         self.assertTrue((home / ".agents" / "skills" / "alpha" / "SKILL.md").is_file())
+
+    def test_install_missing_restores_herdr_only_when_selected(self) -> None:
+        for arguments, expected in (((), False), (("--with-herdr",), True)):
+            with self.subTest(arguments=arguments):
+                _, home = self.make_home()
+                repo = pathlib.Path(tempfile.mkdtemp())
+                self.addCleanup(lambda path=repo: shutil.rmtree(path))
+                fakebin = pathlib.Path(tempfile.mkdtemp())
+                self.addCleanup(lambda path=fakebin: shutil.rmtree(path))
+                self.write_catalog(repo, {"herdr": self.skill_entry("herdr")})
+                npx = fakebin / "npx"
+                npx.write_text(
+                    "#!/usr/bin/env bash\n"
+                    "set -euo pipefail\n"
+                    "mkdir -p \"$HOME/.agents/skills/herdr\"\n"
+                    "printf '%s\\n' '---' 'name: herdr' 'description: test' '---' "
+                    '> "$HOME/.agents/skills/herdr/SKILL.md"\n'
+                )
+                npx.chmod(0o755)
+
+                result = self.run_cli(
+                    repo,
+                    home,
+                    "install-missing",
+                    *arguments,
+                    path=f"{fakebin}:/usr/bin:/bin",
+                )
+
+                self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+                self.assertEqual(
+                    (home / ".agents" / "skills" / "herdr" / "SKILL.md").is_file(),
+                    expected,
+                )
+
+    def test_run_forwards_explicit_herdr_selection_to_update(self) -> None:
+        _, home = self.make_home()
+        repo = pathlib.Path(tempfile.mkdtemp())
+        self.addCleanup(lambda: shutil.rmtree(repo))
+        fakebin = pathlib.Path(tempfile.mkdtemp())
+        self.addCleanup(lambda: shutil.rmtree(fakebin))
+        self.write_catalog(repo, {})
+        self.write_lock(home, {})
+        (home / ".agents" / "skills").mkdir(parents=True, exist_ok=True)
+        (repo / "bin").mkdir()
+        update = repo / "bin" / "skills-update"
+        update.write_text(
+            "#!/usr/bin/env bash\n"
+            "set -euo pipefail\n"
+            "printf '%s\\n' \"$*\" > \"$HOME/update.args\"\n"
+        )
+        update.chmod(0o755)
+        for name in ("git", "npx"):
+            executable = fakebin / name
+            executable.write_text("#!/usr/bin/env bash\nexit 0\n")
+            executable.chmod(0o755)
+
+        result = self.run_cli(
+            repo,
+            home,
+            "run",
+            "--no-update",
+            "--no-push",
+            "--with-herdr",
+            path=f"{fakebin}:/usr/bin:/bin",
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        self.assertEqual((home / "update.args").read_text(), "--no-update --with-herdr\n")
 
     def test_install_missing_continues_after_a_skill_fails(self) -> None:
         _, home = self.make_home()

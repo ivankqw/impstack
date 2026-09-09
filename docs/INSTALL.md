@@ -1,7 +1,7 @@
 # Install impstack
 
 Use this guide to put the portable layer on a fresh Linux or macOS machine. The bootstrap path pins
-pstack, restores upstream skills, and runs the installer.
+pstack, restores selected upstream skills, and runs the installer.
 
 ## Prepare the machine
 
@@ -42,6 +42,15 @@ git clone https://github.com/ivankqw/impstack.git ~/impstack
 The HTTPS form works on a new machine without a GitHub SSH key. Use the SSH remote when that machine
 already has a GitHub key configured.
 
+Herdr is optional. Pass `--with-herdr` only when you want to restore its skill:
+
+```bash
+~/impstack/bootstrap.sh --with-herdr
+```
+
+The default bootstrap does not restore or require Herdr.
+`[sourced: bootstrap.sh, install.sh, bin/skills-sync]`
+
 On a machine where you want to install the portable files before installing a harness, pass the
 explicit headless option:
 
@@ -68,15 +77,20 @@ export PRIVATE_CONFIG="$HOME/path/to/private-agent-config"
 `install.sh` reads `AGENTS.md`, `skills/`, and `bin/` from the private layer when those paths exist.
 Do not put credentials in either repository.
 
-## Merge harness settings
+## Merge Claude Code and Codex settings
 
-The installer leaves harness settings under your control. Merge these templates by hand:
+Claude Code and Codex settings templates remain under operator control.
+The installer does not merge these templates. Merge them by hand:
 
 - `settings/settings.template.json` into `~/.claude/settings.json`
 - `settings/codex.config.template.toml` into `~/.codex/config.toml`
 
 Replace `HOME_PATH` in the Codex template with your home directory. Restart the harness after you
 change its settings.
+
+OpenCode has a different ownership boundary.
+The installer manages OpenCode instructions, MCP servers, and permissions in the global config.
+`[sourced: install.sh, scripts/opencode_config.py]`
 
 ## Verify Claude Code
 
@@ -104,6 +118,87 @@ graded`. Ask for the pstack `bug-fix` model and the `setup-pstack` skill.
 Treat a missing phrase, model, or skill as an install failure. Run `~/impstack/install.sh` and read
 its Codex settings report. Merge any missing setting from
 `settings/codex.config.template.toml`, restart Codex, and repeat the check.
+
+## Verify OpenCode
+
+The installer updates the global OpenCode config when `opencode` is on `PATH`. The default path is
+`~/.config/opencode/opencode.json`. `XDG_CONFIG_HOME` replaces `~/.config` when you set it. When
+`opencode.jsonc` exists, the installer updates that higher-priority file instead. The write converts
+comments and trailing commas in the selected file to JSON. It preserves the order of configuration
+and permission rules. When both files exist, it leaves lower-priority permission policies in place.
+`[sourced: install.sh, scripts/opencode_config.py, https://opencode.ai/docs/config/]`
+
+The config loads the generated `~/AGENTS.md`. OpenCode reads the default `~/.agents/skills`
+directory without another link. If `SHARED_SKILLS` sets another directory, the installer links it
+at `~/.config/opencode/skills` or the matching XDG path.
+`[sourced: scripts/opencode_config.py, https://opencode.ai/docs/rules/, https://opencode.ai/docs/skills/]`
+
+When neither global file defines `permission`, the installer sets the default to `ask`.
+It preserves any existing permission policy, including a partial policy.
+Actions absent from a preserved policy keep OpenCode's harness defaults, which can allow them without approval.
+`[sourced: scripts/opencode_config.py, https://opencode.ai/docs/permissions/]`
+
+Run the canary outside any project:
+
+```bash
+cd /tmp
+opencode run --format json "Do not use tools. If your instructions contain 'A virtue cannot be graded', write LOADED, else write MISSING."
+```
+
+The output contains JSON events. The expected text event has `part.text` set to `LOADED`.
+`[sourced: commission.contract.json, scripts/commission.py]`
+
+`MISSING` means OpenCode did not load the generated instructions. Run
+`~/impstack/install.sh instructions`, then repeat the canary.
+
+Run `opencode mcp list` to check the installed MCP names. The installer writes remote entries to the
+global config because `opencode mcp add` is interactive. It writes environment references instead
+of credentials. If `EXECUTOR_MCP_URL` is unset, the installer does not create or update `executor`.
+Existing entries in either global configuration file remain unchanged.
+`[sourced: install.sh, scripts/opencode_config.py, mcp/servers.json]`
+
+The installer writes the reviewer to the global `agents` directory. The reviewer denies edits. The
+renderer keeps the shared review procedure. It drops the legacy Claude preset header, model, effort,
+and model-selection guidance.
+
+The generated reviewer inherits its parent OpenCode session's model. The adapter does not read or
+select a Factory reviewer profile. It cannot select a different model for that child within an
+existing session. Select a different provider and model from the author when the recipe requires
+independent review.
+
+The installed reviewer is a subagent. Do not use `opencode run --agent reviewer`. A subagent cannot
+run as the primary agent. Do not treat `@reviewer` in a headless `opencode run` prompt as proof of a
+reviewer dispatch.
+
+Before a review, inspect the active configuration and agent commands:
+
+```bash
+opencode models
+opencode debug config
+opencode debug agent reviewer
+opencode debug skill > skills.json
+```
+
+Start a separate session in the reviewed worktree for the reviewer handoff. Set `REVIEW_MODEL` from
+the Factory reviewer profile:
+
+```bash
+REVIEW_MODEL='provider/model-id'
+opencode --model "$REVIEW_MODEL"
+```
+
+Do not reuse the author's session when its model conflicts with the recipe's independence requirement.
+In the new interactive session, use `@reviewer`. You can also ask the primary agent: "Delegate to the reviewer
+subagent through the task tool. Do not review it yourself. Review origin/main...HEAD. Run the
+required checks and cite each command and output."
+
+Approve the task only after the requested subagent and model match the Factory plan. Enter the child
+session. Confirm its recorded model, task event, and review evidence before you accept its verdict.
+The natural-language request does not prove a task dispatch. When the default `ask` rule blocks the
+task, approve it in the interactive session. Use a scoped operator permission for headless work only
+after you verify the subagent target. Do not enable global automatic approval.
+
+`[sourced: agents/reviewer.md, scripts/opencode_config.py, https://opencode.ai/docs/agents/, https://opencode.ai/docs/cli/]`
 
 ## Try Hermes Agent experimentally
 
@@ -167,8 +262,8 @@ steps and returns a nonzero status after they finish. Examine the backup before 
 `./install.sh --force`.
 The installer keeps the five most recent backups for each managed file.
 
-Run the Claude Code and Codex verification checks after an update. Repeat the Hermes canary if you
-use the experimental setup.
+Run the Claude Code, Codex, and OpenCode verification checks after an update. Repeat the Hermes
+canary if you use the experimental setup.
 
 ## Uninstall the setup
 
@@ -194,5 +289,10 @@ pstack checkout. Keep regular files and unrelated links.
 Examine `~/.claude/CLAUDE.md` and `~/AGENTS.md`. Remove them if they contain the generated imports or
 header from `install.sh`. The installer does not edit `~/.claude/settings.json` or
 `~/.codex/config.toml`, so remove their merged entries by hand.
+
+Examine `${XDG_CONFIG_HOME:-$HOME/.config}/opencode`. Remove the `~/AGENTS.md` instruction and the
+impstack MCP entries from `opencode.jsonc` when present; otherwise, use `opencode.json`.
+Preserve operator-owned entries. Remove `agents/reviewer.md`. Remove the `skills` link only
+when it points to the configured shared skills directory.
 
 Delete the repository and pstack checkout after no remaining link points into them.
