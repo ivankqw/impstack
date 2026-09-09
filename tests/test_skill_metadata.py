@@ -1455,6 +1455,40 @@ class SkillMetadataTest(unittest.TestCase):
         wayfinder = (shared / "wayfinder" / "SKILL.md").read_text()
         self.assertNotIn("disable-model-invocation: true", wayfinder)
 
+    def test_update_wrapper_restores_herdr_only_when_selected(self) -> None:
+        for arguments, expected_herdr in (((), False), (("--with-herdr",), True)):
+            with self.subTest(arguments=arguments), tempfile.TemporaryDirectory() as temp:
+                root = pathlib.Path(temp)
+                home = root / "home"
+                shared = home / ".agents" / "skills"
+                fakebin = root / "bin"
+                shared.mkdir(parents=True)
+                fakebin.mkdir()
+                self.populate_imported_skills(shared)
+                skill_metadata.apply_overrides(shared)
+                shutil.rmtree(shared / "herdr")
+                self.write_herdr_restore_npx(fakebin)
+                env = self.base_runtime_env(home, fakebin)
+                env["FAKE_HERDR_STATE"] = "valid"
+
+                result = subprocess.run(
+                    [str(ROOT / "bin" / "skills-update"), "--no-update", *arguments],
+                    cwd=ROOT,
+                    env=env,
+                    text=True,
+                    capture_output=True,
+                    check=False,
+                )
+
+                self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+                self.assertEqual((shared / "herdr" / "SKILL.md").is_file(), expected_herdr)
+
+    def test_install_uses_positive_herdr_selection(self) -> None:
+        install = (ROOT / "install.sh").read_text()
+
+        self.assertIn('catalog_args+=(--with-herdr)', install)
+        self.assertNotIn('--exclude herdr', install)
+
     def test_bootstrap_leaves_regular_home_skills_lock_unchanged(self) -> None:
         tempdir = tempfile.TemporaryDirectory()
         self.addCleanup(tempdir.cleanup)
@@ -2041,6 +2075,14 @@ class SkillMetadataTest(unittest.TestCase):
         self.assertIn("REVIEW_MODEL='provider/model-id'", install)
         self.assertIn('opencode run --model "$REVIEW_MODEL"', install)
         self.assertIn("@reviewer Review origin/main...HEAD.", install)
+
+    def test_readme_names_opencode_as_primary_and_herdr_as_optional(self) -> None:
+        readme = (ROOT / "README.md").read_text()
+
+        self.assertIn("OpenCode is the primary implementation harness.", readme)
+        self.assertIn("Herdr is optional human-operated SSH tooling.", readme)
+        self.assertNotIn("Factory floor | Herdr", readme)
+        self.assertNotIn('HE["Herdr<br/>the floor', readme)
 
     def test_install_docs_distinguish_operator_and_installer_managed_settings(self) -> None:
         install = (ROOT / "docs" / "INSTALL.md").read_text()

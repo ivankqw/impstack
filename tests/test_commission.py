@@ -213,6 +213,61 @@ class CommissionTests(unittest.TestCase):
         self.assertIn("lark-*", patterns)
         self.assertIn("machine-*", patterns)
 
+    def test_catalog_contract_does_not_require_herdr_until_selected(self) -> None:
+        repo = self.sandbox / "catalog-contract-repo"
+        home = self.sandbox / "catalog-contract-home"
+        shared = home / ".agents" / "skills"
+        repo.mkdir()
+        shared.mkdir(parents=True)
+        (shared / "alpha").mkdir()
+        (shared / "alpha" / "SKILL.md").write_text(
+            "---\nname: alpha\ndescription: Test skill.\n---\n"
+        )
+        entries = {
+            name: {
+                "source": f"example/{name}",
+                "sourceType": "github",
+                "sourceUrl": f"https://example.test/{name}.git",
+                "skillPath": "SKILL.md",
+            }
+            for name in ("alpha", "herdr")
+        }
+        (repo / "skills-catalog.json").write_text(
+            json.dumps({"skills": entries}, indent=2) + "\n"
+        )
+        assertion = next(
+            item
+            for item in json.loads(CONTRACT.read_text())["assertions"]
+            if item["id"] == "skills.check"
+        )
+        command = [str(ROOT / assertion["command"][0]), *assertion["command"][1:]]
+        environment = self.environment(
+            HOME=str(home),
+            SHARED_SKILLS=str(shared),
+            IMPSTACK_DIR=str(repo),
+        )
+
+        default = subprocess.run(
+            command,
+            cwd=repo,
+            env=environment,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        selected = subprocess.run(
+            [*command, "--with-herdr"],
+            cwd=repo,
+            env=environment,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+
+        self.assertEqual(default.returncode, 0, default.stderr + default.stdout)
+        self.assertNotEqual(selected.returncode, 0)
+        self.assertIn("missing catalog skill: herdr", selected.stdout)
+
     def test_harness_canaries_run_outside_the_repo(self) -> None:
         result = self.run_commission("check", "--format", "json")
 
