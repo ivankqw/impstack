@@ -104,6 +104,9 @@ class CommissionTests(unittest.TestCase):
                           exit 1
                         fi
                         if [[ "${{2:-}}" == "list" ]]; then
+                          if [[ "{name}" == opencode ]]; then
+                            exec 1>&2
+                          fi
                           if [[ "${{COMMISSION_FAKE_ABSENT:-}}" == true ]]; then
                             case "$id" in
                               mcp.context7.opencode) printf 'exa linear-server executor\\n' ;;

@@ -39,6 +39,11 @@ class WorkingDirectory(enum.Enum):
     OUTSIDE_PROJECT = "outside-project"
 
 
+class OutputStream(enum.Enum):
+    STDOUT = "stdout"
+    STDERR = "stderr"
+
+
 @dataclasses.dataclass(frozen=True)
 class Applicability:
     applicable: bool
@@ -54,6 +59,7 @@ class Assertion:
     working_directory: WorkingDirectory
     command: tuple[str, ...]
     exit_code: int
+    output_stream: OutputStream
     stdout_contains: str | None
     stdout_equals: str | None
     remediation_kind: str
@@ -210,6 +216,7 @@ def load_contract(path: pathlib.Path) -> tuple[Assertion, ...]:
         working_directory = item.get("working_directory")
         expectation = _expect_mapping(item.get("expectation"), f"{assertion_id}.expectation")
         remediation = _expect_mapping(item.get("remediation"), f"{assertion_id}.remediation")
+        output_stream = expectation.get("output_stream", OutputStream.STDOUT.value)
         valid = (
             isinstance(assertion_id, str)
             and assertion_id
@@ -222,6 +229,7 @@ def load_contract(path: pathlib.Path) -> tuple[Assertion, ...]:
             and all(isinstance(requirement, dict) for requirement in requirements)
             and working_directory in {item.value for item in WorkingDirectory}
             and isinstance(expectation.get("exit_code"), int)
+            and output_stream in {item.value for item in OutputStream}
             and (
                 expectation.get("stdout_contains") is None
                 or (
@@ -321,6 +329,7 @@ def load_contract(path: pathlib.Path) -> tuple[Assertion, ...]:
                 working_directory=WorkingDirectory(str(working_directory)),
                 command=tuple(command),
                 exit_code=int(expectation["exit_code"]),
+                output_stream=OutputStream(str(output_stream)),
                 stdout_contains=expectation.get("stdout_contains"),
                 stdout_equals=expectation.get("stdout_equals"),
                 remediation_kind=str(remediation["kind"]),
@@ -477,11 +486,16 @@ def evaluate(assertions: Sequence[Assertion], context: Context) -> Report:
             continue
         evidence = _run(assertion, context)
         matches_exit = evidence.exit_code == assertion.exit_code
-        matches_stdout = assertion.stdout_contains is None or (
-            assertion.stdout_contains in evidence.stdout
+        output = (
+            evidence.stdout
+            if assertion.output_stream is OutputStream.STDOUT
+            else evidence.stderr
+        )
+        matches_output = assertion.stdout_contains is None or (
+            assertion.stdout_contains in output
         )
         if assertion.stdout_equals is not None:
-            matches_stdout = evidence.stdout.strip() == assertion.stdout_equals
+            matches_output = output.strip() == assertion.stdout_equals
         if assertion.kind == "shared-path" and matches_exit:
             expected = pathlib.Path(
                 context.environment.get("SHARED_SKILLS", context.home / ".agents" / "skills")
@@ -492,15 +506,15 @@ def evaluate(assertions: Sequence[Assertion], context: Context) -> Report:
                 actual = pathlib.Path("/__invalid_shared_path__")
             sources = (context.repo / "install.sh", context.repo / "bin" / "skills-update")
             resolver_call = 'bin/skills-sync" resolve-shared'
-            matches_stdout = actual == expected and all(
+            matches_output = actual == expected and all(
                 source.is_file() and resolver_call in source.read_text() for source in sources
             )
-        status = Status.PASS if matches_exit and matches_stdout else Status.FAIL
+        status = Status.PASS if matches_exit and matches_output else Status.FAIL
         if (
             assertion.kind in {"canary", "json-canary"}
             and matches_exit
-            and not matches_stdout
-            and evidence.stdout.strip() != "MISSING"
+            and not matches_output
+            and output.strip() != "MISSING"
         ):
             status = Status.INDETERMINATE
         absent_registration = (
@@ -537,7 +551,7 @@ def evaluate(assertions: Sequence[Assertion], context: Context) -> Report:
             message = "shared path or resolver callers do not match"
         else:
             expected_output = assertion.stdout_equals or assertion.stdout_contains
-            message = f"stdout does not match {expected_output!r}"
+            message = f"{assertion.output_stream.value} does not match {expected_output!r}"
         results.append(
             AssertionResult(
                 assertion.assertion_id,
@@ -605,7 +619,8 @@ def _version(command: str, context: Context) -> str:
         return "not installed"
     assertion = Assertion(
         "inventory", "command", (), WorkingDirectory.REPO, (command, "--version"),
-        0, None, None, "command", "none", None, (Status.FAIL,), None, (), False, None,
+        0, OutputStream.STDOUT, None, None, "command", "none", None,
+        (Status.FAIL,), None, (), False, None,
     )
     evidence = _run(assertion, context)
     return _selected_version(evidence.stdout or evidence.stderr)
