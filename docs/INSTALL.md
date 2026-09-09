@@ -133,8 +133,9 @@ directory without another link. If `SHARED_SKILLS` sets another directory, the i
 at `~/.config/opencode/skills` or the matching XDG path.
 `[sourced: scripts/opencode_config.py, https://opencode.ai/docs/rules/, https://opencode.ai/docs/skills/]`
 
-The global primary agent asks before all actions by default. Existing permission entries override
-this wildcard policy.
+When neither global file defines `permission`, the installer sets the default to `ask`.
+It preserves any existing permission policy, including a partial policy.
+Actions absent from a preserved policy keep OpenCode's harness defaults, which can allow them without approval.
 `[sourced: scripts/opencode_config.py, https://opencode.ai/docs/permissions/]`
 
 Run the canary outside any project:
@@ -152,8 +153,8 @@ The output contains JSON events. The expected text event has `part.text` set to 
 
 Run `opencode mcp list` to check the installed MCP names. The installer writes remote entries to the
 global config because `opencode mcp add` is interactive. It writes environment references instead
-of credentials. It omits `executor` when `EXECUTOR_MCP_URL` is not set.
-If a lower-priority file still defines `executor`, the adapter disables that inherited entry instead.
+of credentials. If `EXECUTOR_MCP_URL` is unset, the installer does not create or update `executor`.
+Existing entries in either global configuration file remain unchanged.
 `[sourced: install.sh, scripts/opencode_config.py, mcp/servers.json]`
 
 The installer writes the reviewer to the global `agents` directory. The reviewer denies edits. The
@@ -290,7 +291,8 @@ header from `install.sh`. The installer does not edit `~/.claude/settings.json` 
 `~/.codex/config.toml`, so remove their merged entries by hand.
 
 Examine `${XDG_CONFIG_HOME:-$HOME/.config}/opencode`. Remove the `~/AGENTS.md` instruction and the
-impstack MCP entries from `opencode.json`. Remove `agents/reviewer.md`. Remove the `skills` link only
+impstack MCP entries from `opencode.jsonc` when present; otherwise, use `opencode.json`.
+Preserve operator-owned entries. Remove `agents/reviewer.md`. Remove the `skills` link only
 when it points to the configured shared skills directory.
 
 Delete the repository and pstack checkout after no remaining link points into them.

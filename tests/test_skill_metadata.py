@@ -1978,30 +1978,34 @@ class SkillMetadataTest(unittest.TestCase):
                 "{env:CONTEXT7_API_KEY}",
             )
 
-    def test_opencode_mcp_disables_inherited_executor_when_url_is_unset(self) -> None:
-        with tempfile.TemporaryDirectory() as temp:
-            root = pathlib.Path(temp)
-            home, env = self.create_valid_install_fixture(root)
-            self.write_fake_opencode(root / "bin")
-            env.pop("EXECUTOR_MCP_URL")
-            config_root = home / ".config" / "opencode"
-            config_root.mkdir(parents=True)
-            lower = b'{"mcp":{"executor":{"type":"remote","url":"https://old.example/mcp"}}}\n'
-            (config_root / "opencode.json").write_bytes(lower)
-            effective = config_root / "opencode.jsonc"
-            effective.write_text('{}\n')
+    def test_opencode_mcp_preserves_existing_executor_when_url_is_unset(self) -> None:
+        for inherited in (False, True):
+            with self.subTest(inherited=inherited), tempfile.TemporaryDirectory() as temp:
+                root = pathlib.Path(temp)
+                home, env = self.create_valid_install_fixture(root)
+                self.write_fake_opencode(root / "bin")
+                env.pop("EXECUTOR_MCP_URL")
+                config_root = home / ".config" / "opencode"
+                config_root.mkdir(parents=True)
+                existing = {"type": "remote", "url": "https://old.example/mcp"}
+                lower = json.dumps({"mcp": {"executor": existing}}).encode()
+                selected = config_root / "opencode.json"
+                selected.write_bytes(lower)
+                if inherited:
+                    selected = config_root / "opencode.jsonc"
+                    selected.write_text('{}\n')
 
-            result = subprocess.run(
-                [str(ROOT / "install.sh"), "mcp"], cwd=ROOT, env=env,
-                text=True, capture_output=True, check=False,
-            )
+                result = subprocess.run(
+                    [str(ROOT / "install.sh"), "mcp"], cwd=ROOT, env=env,
+                    text=True, capture_output=True, check=False,
+                )
 
-            self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
-            self.assertEqual((config_root / "opencode.json").read_bytes(), lower)
-            self.assertEqual(
-                json.loads(effective.read_text())["mcp"].get("executor"),
-                {"enabled": False},
-            )
+                self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+                if inherited:
+                    self.assertEqual((config_root / "opencode.json").read_bytes(), lower)
+                    self.assertNotIn("executor", json.loads(selected.read_text())["mcp"])
+                else:
+                    self.assertEqual(json.loads(selected.read_text())["mcp"]["executor"], existing)
 
     def test_opencode_mcp_explains_why_it_writes_config_directly(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
@@ -2105,7 +2109,7 @@ class SkillMetadataTest(unittest.TestCase):
     def test_opencode_primary_permissions_are_safe_and_preserve_overrides(self) -> None:
         cases = (
             (None, {"*": "ask"}),
-            ({"bash": "deny"}, {"*": "ask", "bash": "deny"}),
+            ({"bash": "deny"}, {"bash": "deny"}),
             ({"*": "allow", "bash": "deny"}, {"*": "allow", "bash": "deny"}),
             ("allow", "allow"),
             ("ask", "ask"),
@@ -2310,6 +2314,43 @@ class SkillMetadataTest(unittest.TestCase):
 
             self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
             self.assertNotIn("permission", json.loads(jsonc_path.read_text()))
+
+    def test_opencode_preserves_config_and_reviewer_symlinks(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = pathlib.Path(temp)
+            home, env = self.create_valid_install_fixture(root)
+            self.write_fake_opencode(root / "bin")
+            config_root = home / ".config" / "opencode"
+            (config_root / "agents").mkdir(parents=True)
+            dotfiles = root / "dotfiles"
+            dotfiles.mkdir()
+            target = dotfiles / "settings.json"
+            target.write_text('{}\n')
+            target.chmod(0o640)
+            selected = config_root / "opencode.jsonc"
+            selected.symlink_to(target)
+            (config_root / "opencode.json").write_text('{"instructions":["lower.md"]}\n')
+            reviewer = dotfiles / "reviewer.md"
+            reviewer.write_text('previous reviewer\n')
+            reviewer.chmod(0o640)
+            reviewer_link = config_root / "agents" / "reviewer.md"
+            reviewer_link.symlink_to(reviewer)
+
+            for step in ("instructions", "agents-hooks"):
+                result = subprocess.run(
+                    [str(ROOT / "install.sh"), step], cwd=ROOT, env=env,
+                    text=True, capture_output=True, check=False,
+                )
+                self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+
+            self.assertTrue(selected.is_symlink())
+            self.assertEqual(
+                json.loads(target.read_text())["instructions"], ["lower.md", str(home / "AGENTS.md")]
+            )
+            self.assertEqual(target.stat().st_mode & 0o777, 0o640)
+            self.assertTrue(reviewer_link.is_symlink())
+            self.assertIn("mode: subagent", reviewer.read_text())
+            self.assertEqual(reviewer.stat().st_mode & 0o777, 0o640)
 
     def test_opencode_config_refuses_malformed_json_without_overwriting_it(self) -> None:
         with tempfile.TemporaryDirectory() as temp:

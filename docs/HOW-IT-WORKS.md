@@ -135,7 +135,8 @@ installer prints a skip reason for those entries.
 
 The OpenCode adapter updates the global `opencode.jsonc` when present; otherwise, it updates `opencode.json`.
 It uses environment references for credentials and preserves unrelated configuration.
-It sets the default permission to `ask` only when the operator has not set a wildcard or scalar policy.
+It sets the default permission to `ask` only when neither global file defines a permission policy.
+Existing policies keep their explicit rules and OpenCode's defaults for unspecified actions.
 
 Hermes support remains experimental. `docs/INSTALL.md` describes the manual context, skill, MCP, and
 canary steps. The installer does not edit `~/.hermes/config.yaml`.

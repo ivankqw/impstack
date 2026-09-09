@@ -39,7 +39,7 @@ def config_root(home: pathlib.Path, environment: dict[str, str]) -> pathlib.Path
 def config_path(home: pathlib.Path, environment: dict[str, str]) -> pathlib.Path:
     root = config_root(home, environment)
     jsonc_path = root / "opencode.jsonc"
-    if jsonc_path.is_file():
+    if jsonc_path.exists() or jsonc_path.is_symlink():
         return jsonc_path
     return root / "opencode.json"
 
@@ -167,6 +167,12 @@ def atomic_write(
 ) -> None:
     temporary: pathlib.Path | None = None
     try:
+        if path.is_symlink():
+            path = path.resolve(strict=True)
+            if not path.is_file():
+                raise OpenCodeConfigError(f"invalid {label} symlink target: {path}")
+            if mode is None:
+                mode = stat.S_IMODE(path.stat().st_mode)
         path.parent.mkdir(parents=True, exist_ok=True)
         with tempfile.NamedTemporaryFile(
             dir=path.parent,
@@ -243,22 +249,18 @@ def add_instructions(
 
 
 def add_primary_permissions(config: dict[str, Any], lower_priority: dict[str, Any]) -> None:
-    if "permission" in config:
-        existing = config["permission"]
-    else:
-        if "permission" in lower_priority:
-            return
-        existing = {}
-    if isinstance(existing, str) and existing in {"allow", "ask", "deny"}:
-        return
-    if not isinstance(existing, dict):
-        raise OpenCodeConfigError(
-            "invalid OpenCode config: permission must be allow, ask, deny, or an object"
-        )
-    if "permission" in lower_priority:
-        return
-    if "*" not in existing:
-        config["permission"] = {"*": "ask", **existing}
+    policies = [
+        source["permission"] for source in (lower_priority, config) if "permission" in source
+    ]
+    for policy in policies:
+        if not isinstance(policy, dict) and not (
+            isinstance(policy, str) and policy in {"allow", "ask", "deny"}
+        ):
+            raise OpenCodeConfigError(
+                "invalid OpenCode config: permission must be allow, ask, deny, or an object"
+            )
+    if not policies:
+        config["permission"] = {"*": "ask"}
 
 
 def add_primary_config(
@@ -276,7 +278,7 @@ def environment_name(value: Any, field: str) -> str:
 
 def render_mcp_servers(
     catalog: dict[str, Any], environment: dict[str, str]
-) -> tuple[set[str], dict[str, dict[str, Any]]]:
+) -> dict[str, dict[str, Any]]:
     servers = catalog.get("servers")
     if not isinstance(servers, list):
         raise OpenCodeConfigError("invalid MCP catalog: servers must be an array")
@@ -315,26 +317,17 @@ def render_mcp_servers(
                 )
             entry["headers"] = {header_name: f"{{env:{env_name}}}"}
         rendered[name] = entry
-    return names, rendered
+    return rendered
 
 
 def add_mcp_servers(
-    config: dict[str, Any], catalog: dict[str, Any], environment: dict[str, str],
-    lower_priority: dict[str, Any],
+    config: dict[str, Any], catalog: dict[str, Any], environment: dict[str, str]
 ) -> None:
-    names, rendered = render_mcp_servers(catalog, environment)
+    rendered = render_mcp_servers(catalog, environment)
     existing = config.get("mcp", {})
     if not isinstance(existing, dict):
         raise OpenCodeConfigError("invalid OpenCode config: mcp must be an object")
-    inherited = lower_priority.get("mcp", {})
-    if not isinstance(inherited, dict):
-        raise OpenCodeConfigError("invalid OpenCode config: mcp must be an object")
-    merged = {name: value for name, value in existing.items() if name not in names}
-    merged.update(rendered)
-    for name in inherited:
-        if name in names and name not in rendered:
-            merged[name] = {"enabled": False}
-    config["mcp"] = merged
+    config["mcp"] = {**existing, **rendered}
 
 
 def frontmatter_blocks(lines: list[str]) -> list[tuple[str, list[str]]]:
@@ -466,9 +459,7 @@ def main(argv: list[str]) -> int:
         update_config(
             args.home,
             environment,
-            lambda config, lower_priority: add_mcp_servers(
-                config, catalog, environment, lower_priority
-            ),
+            lambda config, _lower_priority: add_mcp_servers(config, catalog, environment),
         )
     return 0
 
