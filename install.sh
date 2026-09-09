@@ -285,6 +285,11 @@ if [ -f "$AC/mcp/servers.json" ]; then
       [ "$harness" = opencode ] || mcp_args+=("$harness")
     done
   fi
+  if harness_detected opencode; then
+    echo "  writing OpenCode MCP config directly because opencode mcp add is interactive"
+    python3 "$AC/scripts/opencode_config.py" --home "$HOME" mcp \
+      --servers "$AC/mcp/servers.json"
+  fi
   python3 - "${mcp_args[@]}" <<'PY'
 import json, os, subprocess, sys
 
@@ -362,10 +367,6 @@ for s in json.load(open(sys.argv[1]))["servers"]:
 if failed:
     raise SystemExit(1)
 PY
-  if harness_detected opencode; then
-    python3 "$AC/scripts/opencode_config.py" --home "$HOME" mcp \
-      --servers "$AC/mcp/servers.json"
-  fi
 fi
 }
 
