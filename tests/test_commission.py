@@ -345,6 +345,34 @@ class CommissionTests(unittest.TestCase):
             "canary response was indeterminate",
         )
 
+    def test_opencode_json_canary_reports_an_error_event_as_failure(self) -> None:
+        self.write_executable(
+            self.fakebin / "opencode",
+            textwrap.dedent(
+                """\
+                if [[ "$*" == *"--format json"* ]]; then
+                  printf '%s\n' '{"type":"error","error":{"name":"ProviderAuthError","message":"Authentication required"}}'
+                fi
+                """
+            ),
+        )
+        assertion = next(
+            item
+            for item in commission_module.load_contract(CONTRACT)
+            if item.assertion_id == "harness.opencode.canary"
+        )
+        outside = self.sandbox / "outside"
+        outside.mkdir()
+        context = commission_module.Context(
+            self.repo, self.home, self.environment(), outside
+        )
+
+        result = commission_module.evaluate((assertion,), context).results[0]
+
+        self.assertEqual(result.status, commission_module.Status.FAIL)
+        self.assertIn("ProviderAuthError", result.message)
+        self.assertIn("Authentication required", result.message)
+
     def test_contract_covers_each_declared_mcp_server_for_each_harness(self) -> None:
         contract = json.loads(CONTRACT.read_text())
         servers = json.loads((ROOT / "mcp" / "servers.json").read_text())["servers"]
