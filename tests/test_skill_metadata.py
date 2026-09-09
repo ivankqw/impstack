@@ -662,6 +662,28 @@ class SkillMetadataTest(unittest.TestCase):
             self.assertIn(".claude/CLAUDE.md", state["targets"])
             self.assertNotIn("AGENTS.md", state["targets"])
 
+    def test_generated_codex_instructions_have_no_import_markers(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = pathlib.Path(temp)
+            home, env = self.create_valid_install_fixture(root)
+
+            result = subprocess.run(
+                [str(ROOT / "install.sh"), "instructions"],
+                cwd=ROOT,
+                env=env,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+            self.assertFalse(
+                any(
+                    line.startswith("@")
+                    for line in (home / "AGENTS.md").read_text().splitlines()
+                )
+            )
+
     def test_instruction_step_recovers_when_state_is_lost_but_files_are_identical(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = pathlib.Path(temp)
