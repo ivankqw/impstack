@@ -592,7 +592,6 @@
       ],
       "expectation": {
         "exit_code": 0,
-        "output_stream": "stderr",
         "stdout_contains": "context7"
       },
       "remediation": {
@@ -622,7 +621,6 @@
       ],
       "expectation": {
         "exit_code": 0,
-        "output_stream": "stderr",
         "stdout_contains": "exa"
       },
       "remediation": {
@@ -651,7 +649,6 @@
       ],
       "expectation": {
         "exit_code": 0,
-        "output_stream": "stderr",
         "stdout_contains": "linear-server"
       },
       "remediation": {
@@ -685,7 +682,6 @@
       ],
       "expectation": {
         "exit_code": 0,
-        "output_stream": "stderr",
         "stdout_contains": "executor"
       },
       "remediation": {

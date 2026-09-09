@@ -104,9 +104,6 @@ class CommissionTests(unittest.TestCase):
                           exit 1
                         fi
                         if [[ "${{2:-}}" == "list" ]]; then
-                          if [[ "{name}" == opencode ]]; then
-                            exec 1>&2
-                          fi
                           if [[ "${{COMMISSION_FAKE_ABSENT:-}}" == true ]]; then
                             case "$id" in
                               mcp.context7.opencode) printf 'exa linear-server executor\\n' ;;
@@ -475,7 +472,7 @@ class CommissionTests(unittest.TestCase):
         ):
             self.assertEqual(report[assertion_id]["status"], "fail")
 
-    def test_opencode_mcp_listing_on_stderr_matches_contract(self) -> None:
+    def test_opencode_mcp_listing_matches_complete_ansi_stdout(self) -> None:
         self.write_executable(
             self.fakebin / "opencode",
             textwrap.dedent(
@@ -483,7 +480,16 @@ class CommissionTests(unittest.TestCase):
                 case "${1:-}" in
                   --version) printf 'opencode 1.2.3\n' ;;
                   auth) printf 'authenticated\n' ;;
-                  mcp) printf 'context7 exa linear-server executor\n' >&2 ;;
+                  mcp)
+                    printf '\033[1mMCP servers\033[0m\n'
+                    printf '\033[32m●\033[0m context7 connected\n'
+                    printf '\033[32m●\033[0m exa connected\n'
+                    printf '\033[32m●\033[0m linear-server connected\n'
+                    printf '\033[32m●\033[0m executor connected\n'
+                    printf '4 configured servers\n'
+                    printf 'Configuration loaded successfully\n'
+                    printf '\n'
+                    ;;
                   *) printf '%s\n' '{"type":"text","part":{"type":"text","text":"LOADED"}}' ;;
                 esac
                 """
