@@ -85,7 +85,7 @@ class BootstrapMigrationTests(unittest.TestCase):
 
         self.assertEqual(migrated.returncode, 0, migrated.stderr + migrated.stdout)
         self.assertTrue(new.is_symlink())
-        self.assertEqual(new.resolve(), legacy)
+        self.assertEqual(new.resolve(), legacy.resolve())
         link_line = f"== linked legacy checkout: {new} -> {legacy}"
         self.assertIn(link_line, migrated.stdout)
         self.assertIn(
@@ -179,7 +179,7 @@ class BootstrapMigrationTests(unittest.TestCase):
         link_line = f"== linked legacy checkout: {new} -> {legacy}"
         self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
         self.assertTrue(new.is_symlink())
-        self.assertEqual(new.resolve(), legacy)
+        self.assertEqual(new.resolve(), legacy.resolve())
         self.assertIn(link_line, result.stdout)
         self.assertTrue(custom.is_dir())
         self.assertFalse(custom.is_symlink())
