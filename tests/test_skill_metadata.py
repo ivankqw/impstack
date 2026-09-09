@@ -1812,13 +1812,19 @@ class SkillMetadataTest(unittest.TestCase):
             self.assertEqual(config["instructions"], [str(home / "AGENTS.md")])
             self.assertTrue((home / "AGENTS.md").is_file())
             self.assertFalse((config_root / "skills").exists())
+            contract = json.loads((ROOT / "commission.contract.json").read_text())
+            prompt = next(
+                assertion["command"][-1]
+                for assertion in contract["assertions"]
+                if assertion["id"] == "harness.opencode.canary"
+            )
             canary = subprocess.run(
                 [
                     str(root / "bin" / "opencode"),
                     "run",
                     "--format",
                     "json",
-                    "Do not use tools. Write LOADED if the instructions are loaded.",
+                    prompt,
                 ],
                 cwd=root,
                 env=env,
@@ -1910,6 +1916,47 @@ class SkillMetadataTest(unittest.TestCase):
                 config["mcp"]["context7"]["headers"]["CONTEXT7_API_KEY"],
                 "{env:CONTEXT7_API_KEY}",
             )
+
+    def test_opencode_mcp_explains_why_it_writes_config_directly(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = pathlib.Path(temp)
+            _, env = self.create_valid_install_fixture(root)
+            self.write_fake_opencode(root / "bin")
+
+            result = subprocess.run(
+                [str(ROOT / "install.sh"), "mcp"], cwd=ROOT, env=env,
+                text=True, capture_output=True, check=False,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+            self.assertIn(
+                "writing OpenCode MCP config directly because opencode mcp add is interactive",
+                result.stdout,
+            )
+
+    def test_opencode_mcp_config_survives_other_harness_registration_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = pathlib.Path(temp)
+            home, env = self.create_valid_install_fixture(root)
+            self.write_fake_opencode(root / "bin")
+            (root / "bin" / "claude").write_text(
+                "#!/usr/bin/env bash\n"
+                "if [ \"$1 $2\" = \"mcp get\" ]; then exit 1; fi\n"
+                "echo 'configuration write failed' >&2\n"
+                "exit 23\n"
+            )
+
+            result = subprocess.run(
+                [str(ROOT / "install.sh"), "mcp"], cwd=ROOT, env=env,
+                text=True, capture_output=True, check=False,
+            )
+
+            self.assertNotEqual(result.returncode, 0)
+            config_path = home / ".config" / "opencode" / "opencode.json"
+            self.assertTrue(config_path.is_file(), result.stderr + result.stdout)
+            config = json.loads(config_path.read_text())
+            self.assertIn("context7", config["mcp"])
+            self.assertIn("executor", config["mcp"])
 
     def test_opencode_config_preserves_user_values_and_second_install_is_unchanged(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
