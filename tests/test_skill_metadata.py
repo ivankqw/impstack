@@ -2024,6 +2024,21 @@ class SkillMetadataTest(unittest.TestCase):
                 config = json.loads(config_path.read_text())
                 self.assertEqual(config["permission"], expected)
 
+    def test_opencode_docs_require_a_distinct_reviewer_model(self) -> None:
+        install = (ROOT / "docs" / "INSTALL.md").read_text()
+
+        self.assertIn(
+            "The adapter cannot guarantee that the reviewer uses different model weights.",
+            install,
+        )
+        self.assertIn(
+            "Set `REVIEW_MODEL` to a different provider and model from the author.",
+            install,
+        )
+        self.assertIn("REVIEW_MODEL='provider/model-id'", install)
+        self.assertIn('opencode run --model "$REVIEW_MODEL"', install)
+        self.assertIn("@reviewer Review origin/main...HEAD.", install)
+
     def test_opencode_config_preserves_user_values_from_jsonc(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = pathlib.Path(temp)
