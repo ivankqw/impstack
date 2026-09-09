@@ -1999,6 +1999,31 @@ class SkillMetadataTest(unittest.TestCase):
                 ),
             )
 
+    def test_opencode_primary_permissions_are_safe_and_preserve_overrides(self) -> None:
+        cases = (
+            (None, {"*": "ask"}),
+            ({"bash": "deny"}, {"*": "ask", "bash": "deny"}),
+            ({"*": "allow", "bash": "deny"}, {"*": "allow", "bash": "deny"}),
+        )
+        for existing, expected in cases:
+            with self.subTest(existing=existing), tempfile.TemporaryDirectory() as temp:
+                root = pathlib.Path(temp)
+                home, env = self.create_valid_install_fixture(root)
+                self.write_fake_opencode(root / "bin")
+                config_path = home / ".config" / "opencode" / "opencode.json"
+                if existing is not None:
+                    config_path.parent.mkdir(parents=True)
+                    config_path.write_text(json.dumps({"permission": existing}) + "\n")
+
+                result = subprocess.run(
+                    [str(ROOT / "install.sh"), "instructions"], cwd=ROOT, env=env,
+                    text=True, capture_output=True, check=False,
+                )
+
+                self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+                config = json.loads(config_path.read_text())
+                self.assertEqual(config["permission"], expected)
+
     def test_opencode_config_preserves_user_values_from_jsonc(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = pathlib.Path(temp)
