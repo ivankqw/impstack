@@ -35,7 +35,8 @@ The existing bootstrap still installs the personal preset described below.
 
 Each session receives the portable conventions from `conventions/AGENTS.md`. Claude Code reads a
 symlink through an `@import`. Codex reads a generated `~/AGENTS.md` because its documented behavior
-does not include Claude imports. `install.sh` creates both forms in its `instruction files` block.
+does not include Claude imports. OpenCode loads the generated file through its global `instructions` array.
+`install.sh` creates these forms in its `instruction files` block.
 
 The convention file stays below 200 lines. `MAINTAINING.md` records that ceiling and asks one
 question of each line. Would removing the line cause a mistake? The ceiling protects model attention
@@ -53,7 +54,8 @@ steps for one kind of work. This progressive disclosure keeps narrow guidance ou
 
 I keep own skills under `skills/`. The current set includes `cleanup-crew` and `dogfood-local`.
 `install.sh` links each own skill into `~/.agents/skills`. It links that shared directory into
-Claude Code.
+Claude Code. OpenCode discovers the default shared directory directly.
+For a custom `SHARED_SKILLS`, the installer links it into the OpenCode configuration directory.
 
 I consume upstream skills from their source origin. `skills-catalog.json` records the stable source
 fields. `bin/skills-sync` restores missing skills and updates installed skills. The repository does
@@ -71,8 +73,9 @@ repository neither copies pstack nor adds it to `skills-catalog.json`.
 symlinks for own skills, pstack, and harness exposure. The catalog keeps stable upstream source
 data. The live lockfile keeps machine state.
 
-Herdr runs Codex implementation agents in observable terminal panes. `skills-catalog.json` records the
-`herdrdev/herdr` skill source. `bootstrap.sh` stops if restoration does not create the Herdr skill.
+Herdr runs terminal agents in observable panes. `skills-catalog.json` records the `herdrdev/herdr` skill source.
+Use `--with-herdr` to restore that skill. Bootstrap checks its restoration only when requested.
+The installer does not install the Herdr runtime.
 
 ## Agents isolate a responsibility
 
@@ -84,8 +87,12 @@ and `configs/README.md` explains the reason. Models can share blind spots with a
 same weights. A different model gives the review another failure pattern. The single-vendor config
 uses a different OpenAI model when Codex holds every role.
 
-The default config dispatches the reviewer as a fresh Claude Sonnet subagent. The reviewer receives
+The legacy default config dispatches a fresh Claude Sonnet subagent. The reviewer receives
 the repository path and diff range, but none of the author's conversation context.
+
+The OpenCode adapter renders the review procedure as a subagent with file edits denied.
+It omits Claude model settings. The caller must dispatch the model selected by the factory reviewer profile.
+The generated definition does not read factory assignments or select a model.
 
 ## Factory configs and legacy presets
 
@@ -125,6 +132,10 @@ variable has no value. The file stores no API key or tenant URL.
 The MCP installation block calls both the Claude and Codex CLIs when they are present. Codex accepts
 bearer-token environment variables, but it cannot reproduce arbitrary HTTP header names. The
 installer prints a skip reason for those entries.
+
+The OpenCode adapter updates the global `opencode.jsonc` when present; otherwise, it updates `opencode.json`.
+It uses environment references for credentials and preserves unrelated configuration.
+It sets the default permission to `ask` only when the operator has not set a wildcard or scalar policy.
 
 Hermes support remains experimental. `docs/INSTALL.md` describes the manual context, skill, MCP, and
 canary steps. The installer does not edit `~/.hermes/config.yaml`.
