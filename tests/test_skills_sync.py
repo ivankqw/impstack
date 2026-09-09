@@ -70,6 +70,11 @@ class SkillsSyncTests(unittest.TestCase):
         env["SHARED_SKILLS"] = str(home / ".agents" / "skills")
         env.pop("XDG_STATE_HOME", None)
         if path is not None:
+            fakebin = pathlib.Path(path.split(os.pathsep, 1)[0])
+            if (fakebin / "npx").exists() and not (fakebin / "node").exists():
+                node = fakebin / "node"
+                node.write_text("#!/usr/bin/env bash\nexit 0\n")
+                node.chmod(0o755)
             env["PATH"] = path
             for name in (
                 "NVM_BIN",
@@ -711,6 +716,28 @@ class SkillsSyncTests(unittest.TestCase):
         cron = result.stdout.splitlines()[-1]
         scheduled_path = shlex.split(cron)[5].removeprefix("PATH=")
         self.assertEqual(scheduled_path.split(os.pathsep)[0], str(linuxbrew.parent))
+
+    def test_node_resolution_uses_home_local_bin(self) -> None:
+        _, home = self.make_home()
+        repo = pathlib.Path(tempfile.mkdtemp())
+        self.addCleanup(lambda: shutil.rmtree(repo))
+        path_bin = pathlib.Path(tempfile.mkdtemp())
+        self.addCleanup(lambda: shutil.rmtree(path_bin))
+        local_bin = home / ".local" / "bin"
+        local_bin.mkdir(parents=True)
+        for name in ("node", "npx"):
+            executable = local_bin / name
+            executable.write_text("#!/bin/sh\n")
+            executable.chmod(0o755)
+
+        for command in ("resolve-node", "resolve-npx"):
+            with self.subTest(command=command):
+                result = self.run_cli(repo, home, command, path=str(path_bin))
+                self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+                self.assertEqual(
+                    pathlib.Path(result.stdout.strip()),
+                    local_bin / command.removeprefix("resolve-"),
+                )
 
     def test_schedule_staggers_minute_by_hostname(self) -> None:
         _, home = self.make_home()
