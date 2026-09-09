@@ -21,12 +21,12 @@ git clone https://github.com/ivankqw/agents-cfg.git ~/agents-cfg
 2. [Choose a model config for the harness that owns the session](configs/README.md).
 3. [Give the agent an issue and choose a pstack workflow](docs/HOW-IT-WORKS.md).
 
-## the factory floor
+## implementation flow
 
 ```mermaid
 flowchart LR
-    LI["Linear<br/>order book<br/>issues and maps"] --> HE["Herdr<br/>the floor<br/>Codex lanes in panes"]
-    HE --> WT["Worktree pool<br/>workstations<br/>wt + treehouse<br/>seeded and torn down"]
+    LI["Linear<br/>order book<br/>issues and maps"] --> IH["OpenCode<br/>primary implementation harness"]
+    IH --> WT["Worktree pool<br/>workstations<br/>wt + treehouse<br/>seeded and torn down"]
     WT --> DL
     WT --> SL
     subgraph QA["QA: two review lanes"]
@@ -38,17 +38,22 @@ flowchart LR
     SL --> MR
     MR --> RE["backpass / reflect<br/>retro<br/>transcript findings<br/>operator-gated convention and skill edits"]
     RE --> OP["Operator<br/>hand-off point<br/>explanation gates<br/>planned"]
-    HA["Harness<br/>Claude Code, Codex, or OpenCode<br/>Hermes experimental"] -. runs .-> HE
-    EX["Executor<br/>agent-connection catalogue"] -. supplies tools .-> HE
-    WB["Web tooling<br/>chrome-devtools-mcp"] -. supplies browser access .-> HE
-    MO["Report monitors<br/>sentinel watchers"] -. observes completion .-> HE
-    SK["Skills<br/>method cards<br/>pstack + Matt Pocock"] -. guide .-> HE
+    HA["Other harnesses<br/>Claude Code or Codex<br/>Hermes experimental"] -. can replace .-> IH
+    HE["Herdr<br/>optional human-operated<br/>SSH tooling"] -. opens remote sessions .-> IH
+    EX["Executor<br/>agent-connection catalogue"] -. supplies tools .-> IH
+    WB["Web tooling<br/>chrome-devtools-mcp"] -. supplies browser access .-> IH
+    MO["Report monitors<br/>sentinel watchers"] -. observes completion .-> IH
+    SK["Skills<br/>method cards<br/>pstack + Matt Pocock"] -. guide .-> IH
 ```
+
+OpenCode is the primary implementation harness. Herdr is optional human-operated SSH tooling.
+`[sourced: GitHub issue 23]`
 
 | principle | station | tool | fixed or flexible | where configured |
 |---|---|---|---|---|
 | Start from an order | Order book | Linear issues and maps | Fixed | [`mcp/servers.json`](mcp/servers.json) and the private layer |
-| Keep implementation visible | Factory floor | Herdr with Codex lanes in panes | Fixed | Private layer |
+| Implement the change | Implementation harness | OpenCode | Flexible | [`install.sh`](install.sh), [`configs/`](configs/), and [`settings/`](settings/) `[sourced: GitHub issue 23, install.sh]` |
+| Open remote sessions | SSH tooling | Herdr, operated by a human | Flexible | Private layer `[sourced: GitHub issue 23]` |
 | Isolate each checkout | Workstations | Worktree pool with `wt` and treehouse, seeded and torn down | Fixed | Private layer |
 | Change the blind spots | QA | Fresh Sonnet default defects lane and standards/spec lane | Fixed | [`conventions/AGENTS.md`](conventions/AGENTS.md) and [`configs/`](configs/) |
 | Keep release judgment human | Merge and release | Operator tags | Fixed | Private layer |
@@ -65,8 +70,16 @@ flowchart LR
 I run these from my full machine setup. The portable bootstrap does not install the Herdr or
 [backpass](https://github.com/kunchenguid/backpass) runtimes. `[sourced: bootstrap.sh]`
 
-The bootstrap also leaves the Herdr skill absent by default. Pass `--with-herdr` to restore it.
-`[sourced: bootstrap.sh, install.sh, bin/skills-sync]`
+The bootstrap and skill update commands leave the Herdr skill absent by default.
+Pass `--with-herdr` to select Herdr for bootstrap, update, sync, or catalog checks.
+`[sourced: bootstrap.sh, install.sh, bin/skills-update, bin/skills-sync]`
+
+```bash
+~/agents-cfg/bootstrap.sh --with-herdr
+skills-update --with-herdr
+skills-sync run --with-herdr
+skills-sync check --with-herdr
+```
 
 ```text
 herdr agent prompt codex "Take this lane's issue brief. Use the implement skill, then open a draft PR." --wait
