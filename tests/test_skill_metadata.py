@@ -316,6 +316,23 @@ class SkillMetadataTest(unittest.TestCase):
             )
             executable.chmod(0o755)
 
+    def write_fake_opencode(self, fakebin: pathlib.Path) -> None:
+        executable = fakebin / "opencode"
+        executable.write_text(
+            "#!/usr/bin/env bash\n"
+            "set -euo pipefail\n"
+            "if [ \"${1:-}\" = run ]; then\n"
+            "  config_root=\"${XDG_CONFIG_HOME:-$HOME/.config}/opencode\"\n"
+            "  response=MISSING\n"
+            "  if grep -F \"$HOME/AGENTS.md\" \"$config_root/opencode.json\" >/dev/null 2>&1 "
+            "&& grep -F 'A virtue cannot be graded' \"$HOME/AGENTS.md\" >/dev/null 2>&1; then\n"
+            "    response=LOADED\n"
+            "  fi\n"
+            "  printf '{\"type\":\"text\",\"part\":{\"type\":\"text\",\"text\":\"%s\"}}\\n' \"$response\"\n"
+            "fi\n"
+        )
+        executable.chmod(0o755)
+
     def base_runtime_env(
         self,
         home: pathlib.Path,
@@ -1777,6 +1794,199 @@ class SkillMetadataTest(unittest.TestCase):
             "unsupported context7 for Codex: header CONTEXT7_API_KEY is not bearer auth",
             result.stdout,
         )
+
+    def test_opencode_install_uses_generated_instructions_and_native_skills(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = pathlib.Path(temp)
+            home, env = self.create_valid_install_fixture(root)
+            self.write_fake_opencode(root / "bin")
+
+            result = subprocess.run(
+                [str(ROOT / "install.sh")], cwd=ROOT, env=env,
+                text=True, capture_output=True, check=False,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+            config_root = home / ".config" / "opencode"
+            config = json.loads((config_root / "opencode.json").read_text())
+            self.assertEqual(config["instructions"], [str(home / "AGENTS.md")])
+            self.assertTrue((home / "AGENTS.md").is_file())
+            self.assertFalse((config_root / "skills").exists())
+            canary = subprocess.run(
+                [
+                    str(root / "bin" / "opencode"),
+                    "run",
+                    "--format",
+                    "json",
+                    "Do not use tools. Write LOADED if the instructions are loaded.",
+                ],
+                cwd=root,
+                env=env,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(canary.returncode, 0, canary.stderr + canary.stdout)
+            self.assertEqual(
+                canary.stdout,
+                '{"type":"text","part":{"type":"text","text":"LOADED"}}\n',
+            )
+            reviewer = (config_root / "agents" / "reviewer.md").read_text()
+            self.assertIn("mode: subagent\n", reviewer)
+            self.assertIn("permission:\n  edit: deny\n", reviewer)
+            self.assertNotRegex(reviewer, r"(?m)^(?:model|effort):")
+            self.assertIn("Your job is to break confidence in this change", reviewer)
+            self.assertEqual(
+                config["mcp"],
+                {
+                    "context7": {
+                        "type": "remote",
+                        "url": "https://mcp.context7.com/mcp",
+                        "headers": {
+                            "CONTEXT7_API_KEY": "{env:CONTEXT7_API_KEY}",
+                        },
+                    },
+                    "exa": {
+                        "type": "remote",
+                        "url": "https://mcp.exa.ai/mcp",
+                    },
+                    "linear-server": {
+                        "type": "remote",
+                        "url": "https://mcp.linear.app/mcp",
+                    },
+                    "executor": {
+                        "type": "remote",
+                        "url": "{env:EXECUTOR_MCP_URL}",
+                    },
+                },
+            )
+
+    def test_opencode_install_honors_xdg_config_and_links_custom_shared_skills(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = pathlib.Path(temp)
+            home, env = self.create_valid_install_fixture(root)
+            self.write_fake_opencode(root / "bin")
+            config_home = root / "xdg-config"
+            shared = root / "shared-skills"
+            shared.mkdir()
+            self.populate_imported_skills(shared)
+            env["XDG_CONFIG_HOME"] = str(config_home)
+            env["SHARED_SKILLS"] = str(shared)
+
+            result = subprocess.run(
+                [str(ROOT / "install.sh")], cwd=ROOT, env=env,
+                text=True, capture_output=True, check=False,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+            opencode_root = config_home / "opencode"
+            config = json.loads((opencode_root / "opencode.json").read_text())
+            self.assertEqual(config["instructions"], [str(home / "AGENTS.md")])
+            skills = opencode_root / "skills"
+            self.assertTrue(skills.is_symlink())
+            self.assertEqual(skills.resolve(), shared.resolve())
+            self.assertTrue((opencode_root / "agents" / "reviewer.md").is_file())
+            self.assertFalse((home / ".config" / "opencode").exists())
+
+    def test_opencode_mcp_omits_executor_when_its_url_is_unset(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = pathlib.Path(temp)
+            home, env = self.create_valid_install_fixture(root)
+            self.write_fake_opencode(root / "bin")
+            env.pop("EXECUTOR_MCP_URL")
+
+            result = subprocess.run(
+                [str(ROOT / "install.sh"), "mcp"], cwd=ROOT, env=env,
+                text=True, capture_output=True, check=False,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+            config = json.loads(
+                (home / ".config" / "opencode" / "opencode.json").read_text()
+            )
+            self.assertEqual(set(config["mcp"]), {"context7", "exa", "linear-server"})
+            self.assertEqual(
+                config["mcp"]["context7"]["headers"]["CONTEXT7_API_KEY"],
+                "{env:CONTEXT7_API_KEY}",
+            )
+
+    def test_opencode_config_preserves_user_values_and_second_install_is_unchanged(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = pathlib.Path(temp)
+            home, env = self.create_valid_install_fixture(root)
+            self.write_fake_opencode(root / "bin")
+            config_path = home / ".config" / "opencode" / "opencode.json"
+            config_path.parent.mkdir(parents=True)
+            config_path.write_text(
+                json.dumps(
+                    {
+                        "model": "local/operator-model",
+                        "share": "disabled",
+                        "mcp": {
+                            "operator": {
+                                "type": "remote",
+                                "url": "https://operator.example/mcp",
+                            },
+                        },
+                    }
+                )
+                + "\n"
+            )
+            command = [str(ROOT / "install.sh")]
+
+            first = subprocess.run(
+                command, cwd=ROOT, env=env, text=True, capture_output=True, check=False,
+            )
+            self.assertEqual(first.returncode, 0, first.stderr + first.stdout)
+            config = json.loads(config_path.read_text())
+            self.assertEqual(config["model"], "local/operator-model")
+            self.assertEqual(config["share"], "disabled")
+            self.assertEqual(config["instructions"], [str(home / "AGENTS.md")])
+            self.assertIn("context7", config["mcp"])
+            self.assertIn("executor", config["mcp"])
+            self.assertEqual(
+                config["mcp"]["operator"],
+                {"type": "remote", "url": "https://operator.example/mcp"},
+            )
+            before = (
+                config_path.read_bytes(),
+                config_path.stat().st_ino,
+                config_path.stat().st_mtime_ns,
+            )
+
+            second = subprocess.run(
+                command, cwd=ROOT, env=env, text=True, capture_output=True, check=False,
+            )
+
+            self.assertEqual(second.returncode, 0, second.stderr + second.stdout)
+            self.assertEqual(
+                before,
+                (
+                    config_path.read_bytes(),
+                    config_path.stat().st_ino,
+                    config_path.stat().st_mtime_ns,
+                ),
+            )
+
+    def test_opencode_config_refuses_malformed_json_without_overwriting_it(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = pathlib.Path(temp)
+            home, env = self.create_valid_install_fixture(root)
+            self.write_fake_opencode(root / "bin")
+            config_path = home / ".config" / "opencode" / "opencode.json"
+            config_path.parent.mkdir(parents=True)
+            malformed = b'{"model": broken\n'
+            config_path.write_bytes(malformed)
+
+            result = subprocess.run(
+                [str(ROOT / "install.sh"), "instructions"], cwd=ROOT, env=env,
+                text=True, capture_output=True, check=False,
+            )
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertEqual(config_path.read_bytes(), malformed)
+            self.assertIn("invalid OpenCode config", result.stderr)
+            self.assertNotIn("Traceback", result.stderr)
 
     def test_install_matches_original_in_distinct_isolated_homes(self) -> None:
         original_bytes = subprocess.run(
