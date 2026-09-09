@@ -1901,6 +1901,7 @@ class SkillMetadataTest(unittest.TestCase):
             )
 
             self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+            self.assertNotIn("for OpenCode", result.stdout)
             config = json.loads(
                 (home / ".config" / "opencode" / "opencode.json").read_text()
             )

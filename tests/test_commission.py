@@ -412,13 +412,7 @@ class CommissionTests(unittest.TestCase):
         self.assertNotIn('stage "Executor connection"', wizard.read_text())
 
     def test_unsupported_absent_mcp_is_not_applicable_with_reason(self) -> None:
-        unsupported = (
-            "mcp.context7.codex",
-            "mcp.context7.opencode",
-            "mcp.exa.opencode",
-            "mcp.linear-server.opencode",
-            "mcp.executor.opencode",
-        )
+        unsupported = ("mcp.context7.codex",)
         result = self.run_commission(
             "check",
             "--format",
@@ -450,23 +444,17 @@ class CommissionTests(unittest.TestCase):
         ):
             self.assertEqual(report[assertion_id]["status"], "fail")
 
-    def test_opencode_absence_blocks_declare_positive_listing_signal(self) -> None:
+    def test_opencode_mcp_entries_have_no_unsupported_registration_boundary(self) -> None:
         contract = json.loads(CONTRACT.read_text())
         assertions = (
             item
             for item in contract["assertions"]
             if item["id"].endswith(".opencode")
-            and "absent_registration" in item
+            and item["id"].startswith("mcp.")
         )
 
         for assertion in assertions:
-            absent = assertion["absent_registration"]
-            self.assertIs(
-                absent.get("requires_stdout_without_expected"),
-                True,
-                assertion["id"],
-            )
-            self.assertNotIn("requires_missing_stdout", absent, assertion["id"])
+            self.assertNotIn("absent_registration", assertion, assertion["id"])
 
     def test_generic_codex_failure_is_not_treated_as_missing_context7(self) -> None:
         self.write_executable(self.fakebin / "codex", "exit 1\n")
