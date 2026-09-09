@@ -147,9 +147,22 @@ global config because `opencode mcp add` is interactive. It writes environment r
 of credentials. It omits `executor` when `EXECUTOR_MCP_URL` is not set.
 `[sourced: install.sh, scripts/opencode_config.py, mcp/servers.json]`
 
-The installer writes the reviewer to the global `agents` directory. The reviewer denies the edit
-permission. OpenCode selects its model because the source model and effort values apply to Claude Code.
-`[sourced: agents/reviewer.md, scripts/opencode_config.py, https://opencode.ai/docs/agents/]`
+The installer writes the reviewer to the global `agents` directory. The reviewer denies edits. The
+renderer drops the Claude model and effort because they do not map portably to OpenCode.
+
+The reviewer inherits the invoking primary agent's model.
+The adapter cannot guarantee that the reviewer uses different model weights.
+Set `REVIEW_MODEL` to a different provider and model from the author.
+Then dispatch the reviewer with this command:
+
+```bash
+opencode models
+REVIEW_MODEL='provider/model-id'
+opencode run --model "$REVIEW_MODEL" \
+  "@reviewer Review origin/main...HEAD. Run the tests. Cite each command and its output."
+```
+
+`[sourced: agents/reviewer.md, scripts/opencode_config.py, https://opencode.ai/docs/agents/, https://opencode.ai/docs/cli/]`
 
 ## Try Hermes Agent experimentally
 

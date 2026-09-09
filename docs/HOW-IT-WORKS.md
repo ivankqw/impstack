@@ -71,8 +71,13 @@ It renders the same prompt at `~/.config/opencode/agents/reviewer.md` for OpenCo
 `[sourced: install.sh, scripts/opencode_config.py, agents/reviewer.md]`
 
 The OpenCode reviewer uses `mode: subagent` and denies edits. The renderer removes the Claude model
-and effort fields. OpenCode selects a model from its own config.
+and effort fields because they do not map portably to OpenCode. An unconfigured subagent inherits
+the invoking primary agent's model.
 `[sourced: scripts/opencode_config.py, https://opencode.ai/docs/agents/]`
+
+The adapter cannot guarantee different model weights for the reviewer. The operator must dispatch
+`@reviewer` through a provider and model that differ from the author.
+`[sourced: docs/INSTALL.md, https://opencode.ai/docs/agents/, https://opencode.ai/docs/cli/]`
 
 The global primary agent uses `{"*": "ask"}` when no wildcard permission exists. The merge keeps
 more specific operator permissions and an existing wildcard policy.
