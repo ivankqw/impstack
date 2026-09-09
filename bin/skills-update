@@ -23,10 +23,12 @@ chmod 700 "$SHARED_SKILLS"
 
 no_update=false
 restore_only=false
+with_herdr=false
 for argument in "$@"; do
   case "$argument" in
     --no-update) no_update=true ;;
     --restore-only) restore_only=true ;;
+    --with-herdr) with_herdr=true ;;
     *) echo "unknown argument: $argument" >&2; exit 2 ;;
   esac
 done
@@ -40,7 +42,9 @@ restore_metadata() {
 }
 
 if [ "$restore_only" = false ]; then
-  "$AC/bin/skills-sync" install-missing
+  catalog_args=()
+  [ "$with_herdr" = true ] && catalog_args+=(--with-herdr)
+  "$AC/bin/skills-sync" install-missing "${catalog_args[@]}"
 fi
 
 npx_rc=0

@@ -159,7 +159,7 @@ link() { # link <target> <linkname>
 install_step_skills() {
 local -a catalog_args
 catalog_args=()
-[ "$WITH_HERDR" = false ] && catalog_args+=(--exclude herdr)
+[ "$WITH_HERDR" = true ] && catalog_args+=(--with-herdr)
 if ! "$AC/bin/skills-sync" install-missing "${catalog_args[@]}"; then
   echo "  ! some cataloged skills could not be restored; continuing install" >&2
 fi
@@ -489,7 +489,7 @@ fi
 install_step_validating_catalog() {
 local -a catalog_args
 catalog_args=()
-[ "$WITH_HERDR" = false ] && catalog_args+=(--exclude herdr)
+[ "$WITH_HERDR" = true ] && catalog_args+=(--with-herdr)
 "$AC/bin/skills-sync" check "${catalog_args[@]}"
 }
 

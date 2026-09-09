@@ -31,6 +31,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 from scripts import user_state_paths
 
 CATALOG_FIELDS = ("source", "sourceType", "sourceUrl", "skillPath")
+DEFAULT_EXCLUDED_SKILLS = frozenset({"herdr"})
 
 
 def repo_root() -> pathlib.Path:
@@ -251,6 +252,13 @@ def check(root: pathlib.Path, excluded: frozenset[str] = frozenset()) -> int:
     return 0
 
 
+def selected_exclusions(excluded: list[str], *, with_herdr: bool) -> frozenset[str]:
+    selected = set(excluded)
+    if not with_herdr:
+        selected.update(DEFAULT_EXCLUDED_SKILLS)
+    return frozenset(selected)
+
+
 def node_version_key(npx: pathlib.Path) -> tuple[int, ...]:
     match = re.fullmatch(r"v?(\d+(?:\.\d+)*)", npx.parent.parent.name)
     if not match:
@@ -427,11 +435,13 @@ def recover_generated_sync_commits(
     )
 
 
-def normalize_and_commit(root: pathlib.Path, env: dict[str, str]) -> bool:
+def normalize_and_commit(
+    root: pathlib.Path, env: dict[str, str], *, excluded: frozenset[str]
+) -> bool:
     catalog_path = root / "skills-catalog.json"
     original = catalog_path.read_bytes() if catalog_path.is_file() else None
     normalize(root)
-    if check(root) != 0:
+    if check(root, excluded) != 0:
         raise ValueError("catalog validation failed")
     current = catalog_path.read_bytes()
     if original == current:
@@ -531,7 +541,9 @@ def install_missing(root: pathlib.Path, excluded: frozenset[str] = frozenset()) 
     return 0
 
 
-def run(root: pathlib.Path, *, no_update: bool, no_push: bool) -> int:
+def run(
+    root: pathlib.Path, *, no_update: bool, no_push: bool, with_herdr: bool
+) -> int:
     npx = resolve_npx()
     env = command_env(npx)
     try:
@@ -547,8 +559,11 @@ def run(root: pathlib.Path, *, no_update: bool, no_push: bool) -> int:
     update_command = [str(root / "bin" / "skills-update")]
     if no_update:
         update_command.append("--no-update")
+    if with_herdr:
+        update_command.append("--with-herdr")
     run_command("sync installed skills", update_command, cwd=root, env=env)
-    if not normalize_and_commit(root, env):
+    excluded = selected_exclusions([], with_herdr=with_herdr)
+    if not normalize_and_commit(root, env, excluded=excluded):
         return 0
     if no_push:
         print("push skipped: --no-push")
@@ -569,7 +584,7 @@ def run(root: pathlib.Path, *, no_update: bool, no_push: bool) -> int:
         )
         print("push rejected; retrying sync once", flush=True)
         recover_generated_sync_commits(root, env, failure="push")
-        if not normalize_and_commit(root, env):
+        if not normalize_and_commit(root, env, excluded=excluded):
             return 0
         run_command(
             "git push retry",
@@ -654,12 +669,15 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     normalize_parser.add_argument("--allow-removals", action="store_true")
     check_parser = subparsers.add_parser("check")
     check_parser.add_argument("--exclude", action="append", default=[])
+    check_parser.add_argument("--with-herdr", action="store_true")
     run_parser = subparsers.add_parser("run")
     run_parser.add_argument("--no-update", action="store_true")
     run_parser.add_argument("--no-push", action="store_true")
+    run_parser.add_argument("--with-herdr", action="store_true")
     subparsers.add_parser("schedule")
     install_parser = subparsers.add_parser("install-missing", help="Restore absent catalog entries.")
     install_parser.add_argument("--exclude", action="append", default=[])
+    install_parser.add_argument("--with-herdr", action="store_true")
     subparsers.add_parser("resolve-npx", help="Print the resolved npx executable.")
     subparsers.add_parser("resolve-node", help="Print the resolved node executable.")
     subparsers.add_parser("resolve-shared", help="Print the shared skills directory.")
@@ -676,12 +694,18 @@ def main(argv: list[str]) -> int:
             normalize(repo_root(), allow_removals=args.allow_removals)
             return 0
         if args.command == "check":
-            return check(repo_root(), frozenset(args.exclude))
+            return check(
+                repo_root(),
+                selected_exclusions(args.exclude, with_herdr=args.with_herdr),
+            )
         if args.command == "schedule":
             schedule(repo_root())
             return 0
         if args.command == "install-missing":
-            return install_missing(repo_root(), frozenset(args.exclude))
+            return install_missing(
+                repo_root(),
+                selected_exclusions(args.exclude, with_herdr=args.with_herdr),
+            )
         if args.command == "resolve-npx":
             print(resolve_npx())
             return 0
@@ -701,7 +725,12 @@ def main(argv: list[str]) -> int:
             prepare_cli_state()
             return 0
         if args.command == "run":
-            return run(repo_root(), no_update=args.no_update, no_push=args.no_push)
+            return run(
+                repo_root(),
+                no_update=args.no_update,
+                no_push=args.no_push,
+                with_herdr=args.with_herdr,
+            )
         raise NotImplementedError(f"{args.command} is not implemented")
     except (
         FileNotFoundError,
