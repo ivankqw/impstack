@@ -109,10 +109,12 @@ its Codex settings report. Merge any missing setting from
 
 The installer updates the global OpenCode config when `opencode` is on `PATH`. The default path is
 `~/.config/opencode/opencode.json`. `XDG_CONFIG_HOME` replaces `~/.config` when you set it.
+`[sourced: install.sh, scripts/opencode_config.py, https://opencode.ai/docs/config/]`
 
 The config loads the generated `~/AGENTS.md`. OpenCode reads the default `~/.agents/skills`
 directory without another link. If `SHARED_SKILLS` sets another directory, the installer links it
 at `~/.config/opencode/skills` or the matching XDG path.
+`[sourced: scripts/opencode_config.py, https://opencode.ai/docs/rules/, https://opencode.ai/docs/skills/]`
 
 Run the canary outside any project:
 
@@ -122,6 +124,7 @@ opencode run --format json "Do not use tools. If your instructions contain 'A vi
 ```
 
 The output contains JSON events. The expected text event has `part.text` set to `LOADED`.
+`[sourced: commission.contract.json, scripts/commission.py]`
 
 `MISSING` means OpenCode did not load the generated instructions. Run
 `~/impstack/install.sh instructions`, then repeat the canary.
@@ -129,9 +132,11 @@ The output contains JSON events. The expected text event has `part.text` set to 
 Run `opencode mcp list` to check the installed MCP names. The installer writes remote entries to the
 global config because `opencode mcp add` is interactive. It writes environment references instead
 of credentials. It omits `executor` when `EXECUTOR_MCP_URL` is not set.
+`[sourced: install.sh, scripts/opencode_config.py, mcp/servers.json]`
 
 The installer writes the reviewer to the global `agents` directory. The reviewer denies the edit
 permission. OpenCode selects its model because the source model and effort values apply to Claude Code.
+`[sourced: agents/reviewer.md, scripts/opencode_config.py, https://opencode.ai/docs/agents/]`
 
 ## Try Hermes Agent experimentally
 

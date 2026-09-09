@@ -54,7 +54,7 @@ flowchart LR
 | Keep release judgment human | Merge and release | Operator tags | Fixed | Private layer |
 | Feed corrections back | Retro | backpass and `reflect` surface transcript findings for operator-gated convention and skill edits | Fixed | [`conventions/AGENTS.md`](conventions/AGENTS.md), [`pstack-revision.txt`](pstack-revision.txt), and the private layer |
 | Return control at junctions | Hand-off point | Operator explanation gates, planned | Fixed | Private layer |
-| Choose the runtime per environment | Supporting layer: harness | Claude Code, Codex, or OpenCode. Hermes is experimental `[unverified]` | Flexible | [`configs/`](configs/), [`settings/`](settings/), and the private layer |
+| Choose the runtime per environment | Supporting layer: harness | Claude Code, Codex, or OpenCode. Hermes is experimental `[unverified]` | Flexible | [`install.sh`](install.sh), [`configs/`](configs/), [`settings/`](settings/), and the private layer `[sourced: install.sh]` |
 | Carry one tool catalogue | Supporting layer: agent connections | Executor Cloud through MCP | Fixed | [`mcp/servers.json`](mcp/servers.json) |
 | Give lanes browser access | Supporting layer: web tooling | `chrome-devtools-mcp` | Flexible | [`skills/browser-tooling/`](skills/browser-tooling/) |
 | Observe lane completion | Supporting layer: report monitors | Report and pull-request sentinel watchers | Fixed | [`skills/lane-orchestration/`](skills/lane-orchestration/) |
