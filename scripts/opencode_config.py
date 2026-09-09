@@ -138,6 +138,35 @@ def load_mapping(path: pathlib.Path, label: str) -> dict[str, Any]:
     return value
 
 
+def atomic_write(
+    path: pathlib.Path,
+    desired: bytes,
+    label: str,
+    mode: int | None = None,
+) -> None:
+    temporary: pathlib.Path | None = None
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with tempfile.NamedTemporaryFile(
+            dir=path.parent,
+            prefix=f".{path.name}.",
+            delete=False,
+        ) as output:
+            temporary = pathlib.Path(output.name)
+            if mode is not None:
+                os.fchmod(output.fileno(), mode)
+            output.write(desired)
+        os.replace(temporary, path)
+    except OSError as error:
+        raise OpenCodeConfigError(f"could not write {label}: {path}: {error}") from None
+    finally:
+        if temporary is not None:
+            try:
+                temporary.unlink(missing_ok=True)
+            except OSError:
+                pass
+
+
 def write_mapping_if_changed(path: pathlib.Path, value: dict[str, Any]) -> bool:
     desired = (json.dumps(value, indent=2, sort_keys=True) + "\n").encode()
     try:
@@ -153,26 +182,7 @@ def write_mapping_if_changed(path: pathlib.Path, value: dict[str, Any]) -> bool:
             return False
         mode = stat.S_IMODE(path.stat().st_mode)
 
-    temporary: pathlib.Path | None = None
-    try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with tempfile.NamedTemporaryFile(
-            dir=path.parent,
-            prefix=f".{path.name}.",
-            delete=False,
-        ) as output:
-            temporary = pathlib.Path(output.name)
-            os.fchmod(output.fileno(), mode)
-            output.write(desired)
-        os.replace(temporary, path)
-    except OSError as error:
-        raise OpenCodeConfigError(f"could not write OpenCode config: {path}: {error}") from None
-    finally:
-        if temporary is not None:
-            try:
-                temporary.unlink(missing_ok=True)
-            except OSError:
-                pass
+    atomic_write(path, desired, "OpenCode config", mode)
     print(f"  configured OpenCode: {path}")
     return True
 
@@ -331,23 +341,7 @@ def write_bytes_if_changed(path: pathlib.Path, desired: bytes) -> bool:
     if existing == desired:
         print(f"  unchanged OpenCode file: {path}")
         return False
-    temporary: pathlib.Path | None = None
-    try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with tempfile.NamedTemporaryFile(
-            dir=path.parent, prefix=f".{path.name}.", delete=False
-        ) as output:
-            temporary = pathlib.Path(output.name)
-            output.write(desired)
-        os.replace(temporary, path)
-    except OSError as error:
-        raise OpenCodeConfigError(f"could not write OpenCode file: {path}: {error}") from None
-    finally:
-        if temporary is not None:
-            try:
-                temporary.unlink(missing_ok=True)
-            except OSError:
-                pass
+    atomic_write(path, desired, "OpenCode file")
     print(f"  installed OpenCode file: {path}")
     return True
 
