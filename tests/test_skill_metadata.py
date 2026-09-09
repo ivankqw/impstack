@@ -2042,6 +2042,19 @@ class SkillMetadataTest(unittest.TestCase):
         self.assertIn('opencode run --model "$REVIEW_MODEL"', install)
         self.assertIn("@reviewer Review origin/main...HEAD.", install)
 
+    def test_install_docs_distinguish_operator_and_installer_managed_settings(self) -> None:
+        install = (ROOT / "docs" / "INSTALL.md").read_text()
+
+        self.assertIn("## Merge Claude Code and Codex settings", install)
+        self.assertIn(
+            "Claude Code and Codex settings templates remain under operator control.",
+            install,
+        )
+        self.assertIn(
+            "The installer manages OpenCode instructions, MCP servers, and permissions in the global config.",
+            install,
+        )
+
     def test_opencode_config_preserves_user_values_from_jsonc(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = pathlib.Path(temp)
