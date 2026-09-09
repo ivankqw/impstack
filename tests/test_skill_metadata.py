@@ -2016,6 +2016,55 @@ class SkillMetadataTest(unittest.TestCase):
                 ),
             )
 
+    def test_opencode_config_preserves_user_values_from_jsonc(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = pathlib.Path(temp)
+            home, env = self.create_valid_install_fixture(root)
+            self.write_fake_opencode(root / "bin")
+            config_path = home / ".config" / "opencode" / "opencode.json"
+            config_path.parent.mkdir(parents=True)
+            config_path.write_text(
+                textwrap.dedent(
+                    """\
+                    {
+                      // OpenCode accepts comments in its config.
+                      "model": "local//operator-model",
+                      "share": "disabled",
+                      "metadata": {
+                        "literal": "keep /* this */ value",
+                        "items": ["one", "two",],
+                      },
+                      "mcp": {
+                        "operator": {
+                          "type": "remote",
+                          "url": "https://operator.example/mcp",
+                        },
+                      },
+                    }
+                    """
+                )
+            )
+
+            result = subprocess.run(
+                [str(ROOT / "install.sh")], cwd=ROOT, env=env,
+                text=True, capture_output=True, check=False,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+            config = json.loads(config_path.read_text())
+            self.assertEqual(config["model"], "local//operator-model")
+            self.assertEqual(config["share"], "disabled")
+            self.assertEqual(
+                config["metadata"],
+                {"literal": "keep /* this */ value", "items": ["one", "two"]},
+            )
+            self.assertEqual(
+                config["mcp"]["operator"],
+                {"type": "remote", "url": "https://operator.example/mcp"},
+            )
+            self.assertEqual(config["instructions"], [str(home / "AGENTS.md")])
+            self.assertIn("context7", config["mcp"])
+
     def test_opencode_config_refuses_malformed_json_without_overwriting_it(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = pathlib.Path(temp)
