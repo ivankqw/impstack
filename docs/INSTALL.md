@@ -153,16 +153,17 @@ The output contains JSON events. The expected text event has `part.text` set to 
 Run `opencode mcp list` to check the installed MCP names. The installer writes remote entries to the
 global config because `opencode mcp add` is interactive. It writes environment references instead
 of credentials. It omits `executor` when `EXECUTOR_MCP_URL` is not set.
+If a lower-priority file still defines `executor`, the adapter disables that inherited entry instead.
 `[sourced: install.sh, scripts/opencode_config.py, mcp/servers.json]`
 
 The installer writes the reviewer to the global `agents` directory. The reviewer denies edits. The
 renderer keeps the shared review procedure. It drops the legacy Claude preset header, model, effort,
 and model-selection guidance.
 
-The generated reviewer has no model selection. The adapter does not read or select a Factory
-reviewer profile. When you use it for a Factory handoff, select the reviewer model from the Factory
-plan. Select a different provider and model from the author when the recipe requires independent
-review.
+The generated reviewer inherits its parent OpenCode session's model. The adapter does not read or
+select a Factory reviewer profile. It cannot select a different model for that child within an
+existing session. Select a different provider and model from the author when the recipe requires
+independent review.
 
 The installed reviewer is a subagent. Do not use `opencode run --agent reviewer`. A subagent cannot
 run as the primary agent. Do not treat `@reviewer` in a headless `opencode run` prompt as proof of a
@@ -177,8 +178,16 @@ opencode debug agent reviewer
 opencode debug skill > skills.json
 ```
 
-Start `opencode` in the reviewed worktree. Select the reviewer model from the Factory plan. In the
-interactive session, use `@reviewer`. You can also ask the primary agent: "Delegate to the reviewer
+Start a separate session in the reviewed worktree for the reviewer handoff. Set `REVIEW_MODEL` from
+the Factory reviewer profile:
+
+```bash
+REVIEW_MODEL='provider/model-id'
+opencode --model "$REVIEW_MODEL"
+```
+
+Do not reuse the author's session when its model conflicts with the recipe's independence requirement.
+In the new interactive session, use `@reviewer`. You can also ask the primary agent: "Delegate to the reviewer
 subagent through the task tool. Do not review it yourself. Review origin/main...HEAD. Run the
 required checks and cite each command and output."
 

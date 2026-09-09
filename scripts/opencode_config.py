@@ -319,14 +319,21 @@ def render_mcp_servers(
 
 
 def add_mcp_servers(
-    config: dict[str, Any], catalog: dict[str, Any], environment: dict[str, str]
+    config: dict[str, Any], catalog: dict[str, Any], environment: dict[str, str],
+    lower_priority: dict[str, Any],
 ) -> None:
     names, rendered = render_mcp_servers(catalog, environment)
     existing = config.get("mcp", {})
     if not isinstance(existing, dict):
         raise OpenCodeConfigError("invalid OpenCode config: mcp must be an object")
+    inherited = lower_priority.get("mcp", {})
+    if not isinstance(inherited, dict):
+        raise OpenCodeConfigError("invalid OpenCode config: mcp must be an object")
     merged = {name: value for name, value in existing.items() if name not in names}
     merged.update(rendered)
+    for name in inherited:
+        if name in names and name not in rendered:
+            merged[name] = {"enabled": False}
     config["mcp"] = merged
 
 
@@ -459,7 +466,9 @@ def main(argv: list[str]) -> int:
         update_config(
             args.home,
             environment,
-            lambda config, _lower_priority: add_mcp_servers(config, catalog, environment),
+            lambda config, lower_priority: add_mcp_servers(
+                config, catalog, environment, lower_priority
+            ),
         )
     return 0
 

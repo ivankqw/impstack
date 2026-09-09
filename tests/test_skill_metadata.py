@@ -1978,6 +1978,31 @@ class SkillMetadataTest(unittest.TestCase):
                 "{env:CONTEXT7_API_KEY}",
             )
 
+    def test_opencode_mcp_disables_inherited_executor_when_url_is_unset(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = pathlib.Path(temp)
+            home, env = self.create_valid_install_fixture(root)
+            self.write_fake_opencode(root / "bin")
+            env.pop("EXECUTOR_MCP_URL")
+            config_root = home / ".config" / "opencode"
+            config_root.mkdir(parents=True)
+            lower = b'{"mcp":{"executor":{"type":"remote","url":"https://old.example/mcp"}}}\n'
+            (config_root / "opencode.json").write_bytes(lower)
+            effective = config_root / "opencode.jsonc"
+            effective.write_text('{}\n')
+
+            result = subprocess.run(
+                [str(ROOT / "install.sh"), "mcp"], cwd=ROOT, env=env,
+                text=True, capture_output=True, check=False,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+            self.assertEqual((config_root / "opencode.json").read_bytes(), lower)
+            self.assertEqual(
+                json.loads(effective.read_text())["mcp"].get("executor"),
+                {"enabled": False},
+            )
+
     def test_opencode_mcp_explains_why_it_writes_config_directly(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = pathlib.Path(temp)
