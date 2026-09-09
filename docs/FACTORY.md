@@ -49,6 +49,7 @@ When a reviewer sets cross_vendor to true, it must use a different provider from
 harness_options and provider_options are free-form data for the selected harness.
 The validator does not treat model names or option values as available capabilities.
 Identity checks compare declared provider and model strings.
+Provider and model identifiers cannot contain surrounding whitespace.
 Resolve aliases and gateway model names before relying on review independence.
 
 ## Profile substitution

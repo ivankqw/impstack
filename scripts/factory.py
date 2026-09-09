@@ -176,6 +176,9 @@ def _parse_profile(name: str, raw: object) -> Profile:
         )
     provider = _string(profile["provider"], f"profile {name}.provider")
     model = _string(profile["model"], f"profile {name}.model")
+    for key, value in (("provider", provider), ("model", model)):
+        if value != value.strip():
+            raise FactoryError(f"profile {name}.{key} must not have surrounding whitespace")
     options = _object(profile["options"], f"profile {name}.options")
     unknown = sorted(set(options) - PROFILE_OPTION_KEYS)
     if unknown:
@@ -448,8 +451,7 @@ def _parse_result(document: Mapping[str, Any]) -> dict[str, Any]:
     unresolved = _string_list(document["unresolved_work"], "result.unresolved_work", nonempty=False)
     artifacts = _string_list(document["artifacts"], "result.artifacts", nonempty=False)
     if status == "success":
-        if not document["actual_commit"]:
-            raise FactoryError("successful result must include actual_commit")
+        _string(document["actual_commit"], "successful result.actual_commit")
         if unresolved:
             raise FactoryError("successful result must have no unresolved_work")
         if not evidence or any(item["exit_code"] != 0 for item in evidence):

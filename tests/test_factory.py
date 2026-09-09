@@ -155,6 +155,40 @@ class FactoryCliTests(unittest.TestCase):
         self.assertEqual(cross_vendor.returncode, 2)
         self.assertIn("requires a different provider", cross_vendor.stderr)
 
+    def test_profile_identity_rejects_surrounding_whitespace(self) -> None:
+        for field in ("provider", "model"):
+            with self.subTest(field=field):
+                config = self.load_json(CONFIG_PATH)
+                implementer = config["profiles"]["native-implementer"]
+                reviewer = config["profiles"]["caller-reviewer"]
+                reviewer.update(provider=implementer["provider"], model=implementer["model"])
+                reviewer[field] += " "
+                completed = self.run_factory(
+                    "validate", str(self.write_json("whitespace-identity.json", config))
+                )
+                self.assertEqual(completed.returncode, 2)
+                self.assertIn("must not have surrounding whitespace", completed.stderr)
+
+    def test_success_rejects_whitespace_commit(self) -> None:
+        brief = self.load_json(BRIEF_PATH)
+        result = self.load_json(RESULT_PATH)
+        result.update(
+            status="success",
+            actual_commit=" \t",
+            unresolved_work=[],
+            evidence=[
+                {"command": check["command"], "exit_code": 0, "output": "test output"}
+                for check in brief["checks"]
+            ],
+        )
+        completed = self.run_factory(
+            "validate-result",
+            str(self.write_json("whitespace-commit.json", result)),
+            "--brief", str(BRIEF_PATH),
+        )
+        self.assertEqual(completed.returncode, 2)
+        self.assertIn("actual_commit must be a non-empty string", completed.stderr)
+
     def test_profiles_and_hybrid_topology_use_declared_transports(self) -> None:
         config = self.load_json(CONFIG_PATH)
         config["profiles"]["caller-planner"]["harness"] = "codex-cli"
