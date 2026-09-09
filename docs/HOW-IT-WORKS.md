@@ -58,8 +58,10 @@ repository neither copies pstack nor adds it to `skills-catalog.json`.
 symlinks for own skills, pstack, and harness exposure. The catalog keeps stable upstream source
 data. The live lockfile keeps machine state.
 
-Herdr runs Codex implementation agents in observable terminal panes. `skills-catalog.json` records the
-`herdrdev/herdr` skill source. `bootstrap.sh` stops if restoration does not create the Herdr skill.
+Herdr runs Codex implementation agents in observable terminal panes. `skills-catalog.json` records
+the `herdrdev/herdr` skill source. The installer leaves this skill absent by default. Pass
+`--with-herdr` to restore it and check its metadata.
+`[sourced: bootstrap.sh, install.sh, bin/skills-sync, skills-catalog.json]`
 
 ## Agents isolate a responsibility
 
@@ -71,6 +73,10 @@ It renders the same prompt at `~/.config/opencode/agents/reviewer.md` for OpenCo
 The OpenCode reviewer uses `mode: subagent` and denies edits. The renderer removes the Claude model
 and effort fields. OpenCode selects a model from its own config.
 `[sourced: scripts/opencode_config.py, https://opencode.ai/docs/agents/]`
+
+The global primary agent uses `{"*": "ask"}` when no wildcard permission exists. The merge keeps
+more specific operator permissions and an existing wildcard policy.
+`[sourced: scripts/opencode_config.py, https://opencode.ai/docs/permissions/]`
 
 The reviewer must not use the model that wrote the change. `conventions/AGENTS.md` states the rule,
 and `configs/README.md` explains the reason. Models can share blind spots with another run of the

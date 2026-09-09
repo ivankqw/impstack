@@ -65,6 +65,9 @@ flowchart LR
 I run these from my full machine setup. The portable bootstrap does not install the Herdr or
 [backpass](https://github.com/kunchenguid/backpass) runtimes. `[sourced: bootstrap.sh]`
 
+The bootstrap also leaves the Herdr skill absent by default. Pass `--with-herdr` to restore it.
+`[sourced: bootstrap.sh, install.sh, bin/skills-sync]`
+
 ```text
 herdr agent prompt codex "Take this lane's issue brief. Use the implement skill, then open a draft PR." --wait
 ```

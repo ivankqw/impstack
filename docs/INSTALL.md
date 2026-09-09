@@ -1,7 +1,7 @@
 # Install impstack
 
 Use this guide to put the portable layer on a fresh Linux or macOS machine. The bootstrap path pins
-pstack, restores upstream skills, and runs the installer.
+pstack, restores selected upstream skills, and runs the installer.
 
 ## Prepare the machine
 
@@ -41,6 +41,15 @@ git clone https://github.com/ivankqw/impstack.git ~/impstack
 
 The HTTPS form works on a new machine without a GitHub SSH key. Use the SSH remote when that machine
 already has a GitHub key configured.
+
+Herdr is optional. Pass `--with-herdr` only when you want to restore its skill:
+
+```bash
+~/impstack/bootstrap.sh --with-herdr
+```
+
+The default bootstrap does not restore or require Herdr.
+`[sourced: bootstrap.sh, install.sh, bin/skills-sync]`
 
 On a machine where you want to install the portable files before installing a harness, pass the
 explicit headless option:
@@ -115,6 +124,10 @@ The config loads the generated `~/AGENTS.md`. OpenCode reads the default `~/.age
 directory without another link. If `SHARED_SKILLS` sets another directory, the installer links it
 at `~/.config/opencode/skills` or the matching XDG path.
 `[sourced: scripts/opencode_config.py, https://opencode.ai/docs/rules/, https://opencode.ai/docs/skills/]`
+
+The global primary agent asks before all actions by default. Existing permission entries override
+this wildcard policy.
+`[sourced: scripts/opencode_config.py, https://opencode.ai/docs/permissions/]`
 
 Run the canary outside any project:
 
