@@ -267,24 +267,33 @@ if [ -f "$AC/mcp/servers.json" ]; then
 import json, os, subprocess, sys
 
 failed = False
+timeout = float(os.environ.get("IMPSTACK_MCP_TIMEOUT", "30"))
+
+def run(command):
+    try:
+        return subprocess.run(command, capture_output=True, text=True, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        return None
 
 def output(result):
+    if result is None:
+        return f"command timed out after {timeout:g}s"
     return (result.stderr or result.stdout or f"exit {result.returncode}").strip().splitlines()[-1]
 
 def present(command):
-    result = subprocess.run(command, capture_output=True, text=True)
-    return result.returncode == 0
+    result = run(command)
+    return result is not None and result.returncode == 0
 
 def add(name, harness, command, probe):
     global failed
-    result = subprocess.run(command, capture_output=True, text=True)
+    result = run(command)
     installed = present(probe)
     if installed:
-        state = "registered" if result.returncode == 0 else "already present"
+        state = "registered" if result is not None and result.returncode == 0 else "already present"
         print(f"  {state} {name} for {harness}")
         return
     detail = output(result)
-    if result.returncode == 0:
+    if result is not None and result.returncode == 0:
         detail = "registration command succeeded but the server is absent"
     print(f"  error {name} for {harness}: {detail}", file=sys.stderr)
     failed = True

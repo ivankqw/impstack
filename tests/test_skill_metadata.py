@@ -575,6 +575,26 @@ class SkillMetadataTest(unittest.TestCase):
             )
             self.assertNotIn("registered context7 for Claude", result.stdout)
 
+    def test_mcp_times_out_a_hung_registration(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = pathlib.Path(temp)
+            _, env = self.create_valid_install_fixture(root)
+            (root / "bin/codex").unlink()
+            (root / "bin/claude").write_text(
+                "#!/usr/bin/env bash\n"
+                "if [ \"$1 $2\" = \"mcp get\" ]; then exit 1; fi\n"
+                "sleep 10\n"
+            )
+            env["IMPSTACK_MCP_TIMEOUT"] = "0.05"
+
+            result = subprocess.run(
+                [str(ROOT / "install.sh"), "mcp"], cwd=ROOT, env=env,
+                text=True, capture_output=True, check=False,
+            )
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("command timed out after 0.05s", result.stderr)
+
     def test_install_propagates_explicit_skill_state_paths(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = pathlib.Path(temp)
