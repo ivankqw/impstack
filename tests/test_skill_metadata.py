@@ -1579,9 +1579,9 @@ class SkillMetadataTest(unittest.TestCase):
 
         self.assertLess(text.index("preflight-pstack"), text.index('"$DEST/install.sh"'))
 
-    def test_bootstrap_requires_restored_herdr_skill(self) -> None:
-        for state, expected_rc in (("valid", 0), ("missing", 1), ("decoy", 1)):
-            with self.subTest(state=state), tempfile.TemporaryDirectory() as temp:
+    def test_bootstrap_restores_herdr_only_when_selected(self) -> None:
+        for arguments, expected_herdr in (((), False), (("--with-herdr",), True)):
+            with self.subTest(arguments=arguments), tempfile.TemporaryDirectory() as temp:
                 root = pathlib.Path(temp)
                 home = root / "home"
                 shared = home / ".agents" / "skills"
@@ -1597,15 +1597,15 @@ class SkillMetadataTest(unittest.TestCase):
                     (ROOT / "pstack-revision.txt").read_text().splitlines()[0],
                 )
                 self.write_herdr_restore_npx(fakebin)
-                self.write_fake_mcp_clis(fakebin)
+                self.write_fake_opencode(fakebin)
                 env = self.base_runtime_env(home, fakebin, pstack=pstack)
                 env["IMPSTACK_DIR"] = str(ROOT)
-                env["FAKE_HERDR_STATE"] = state
+                env["FAKE_HERDR_STATE"] = "valid"
                 env["CONTEXT7_API_KEY"] = "test-token"
                 env["EXECUTOR_MCP_URL"] = "https://executor.example/mcp"
 
                 result = subprocess.run(
-                    [str(ROOT / "bootstrap.sh")],
+                    [str(ROOT / "bootstrap.sh"), *arguments],
                     cwd=ROOT,
                     env=env,
                     text=True,
@@ -1614,27 +1614,10 @@ class SkillMetadataTest(unittest.TestCase):
                 )
 
                 output = result.stderr + result.stdout
-                self.assertEqual(
-                    (home / "claude-mcp.args").read_text(),
-                    "mcp add --scope user --transport http context7 https://mcp.context7.com/mcp "
-                    "--header CONTEXT7_API_KEY: test-token\n"
-                    "mcp add --scope user --transport http exa https://mcp.exa.ai/mcp\n"
-                    "mcp add --scope user --transport http linear-server https://mcp.linear.app/mcp\n"
-                    "mcp add --scope user --transport http executor https://executor.example/mcp\n",
-                )
-                self.assertEqual(
-                    (home / "codex-mcp.args").read_text(),
-                    "mcp add exa --url https://mcp.exa.ai/mcp\n"
-                    "mcp add linear-server --url https://mcp.linear.app/mcp\n"
-                    "mcp add executor --url https://executor.example/mcp\n",
-                )
-                self.assertEqual(result.returncode, expected_rc, output)
-                if state == "missing":
-                    self.assertIn("missing catalog skill: herdr", output)
-                elif expected_rc:
-                    self.assertIn("Herdr restore failed", output)
-                else:
-                    self.assertIn("== done", output)
+                self.assertEqual(result.returncode, 0, output)
+                self.assertEqual((shared / "herdr" / "SKILL.md").is_file(), expected_herdr)
+                self.assertEqual((home / "npx.args").exists(), expected_herdr)
+                self.assertIn("== done", output)
 
         catalog = json.loads((ROOT / "skills-catalog.json").read_text())
         self.assertEqual(catalog["skills"]["herdr"]["source"], "herdrdev/herdr")
