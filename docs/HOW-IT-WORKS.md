@@ -14,7 +14,8 @@ See [the factory contract](FACTORY.md) for commands and examples.
 Native Codex app plans are handoffs to tools available in the current app session.
 They do not imply a public dispatch API or guaranteed model-selection support.
 Herdr plans are handoffs for terminal agents using Claude Code, Codex CLI, or OpenCode.
-A hybrid configuration uses an app coordinator and Herdr implementation lanes.
+A hybrid configuration mixes native app and Herdr profiles.
+The example uses an app coordinator and Herdr implementation lanes; other mixed role assignments are valid.
 
 Active instructions and permission policy remain authoritative.
 If the selected profile conflicts with them, report the conflict before dispatch.

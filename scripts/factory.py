@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import dataclasses
 import json
+import math
 import pathlib
 import sys
 from collections.abc import Mapping, Sequence
@@ -147,10 +148,35 @@ def _string_list(value: object, label: str, *, nonempty: bool = True) -> tuple[s
     return tuple(value)
 
 
+def _unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise FactoryError(f"duplicate JSON key: {key}")
+        result[key] = value
+    return result
+
+
+def _reject_constant(value: str) -> None:
+    raise FactoryError(f"non-finite JSON number: {value}")
+
+
+def _finite_float(value: str) -> float:
+    number = float(value)
+    if not math.isfinite(number):
+        raise FactoryError(f"non-finite JSON number: {value}")
+    return number
+
+
 def _load_json(path: pathlib.Path) -> dict[str, Any]:
     try:
-        value = json.loads(path.read_text())
-    except OSError as error:
+        value = json.loads(
+            path.read_text(encoding="utf-8"),
+            object_pairs_hook=_unique_object,
+            parse_constant=_reject_constant,
+            parse_float=_finite_float,
+        )
+    except (OSError, UnicodeError) as error:
         raise FactoryError(f"cannot read {path}: {error}") from error
     except json.JSONDecodeError as error:
         raise FactoryError(f"invalid JSON in {path}: {error}") from error
@@ -218,6 +244,13 @@ def _parse_recipe(name: str, raw: object) -> Recipe:
             raise FactoryError(f"recipe {name}.steps[{index}] references unknown role: {role}")
         step_names.add(step_id)
         steps.append(Step(step_id, role))
+    step_roles = [step.role for step in steps]
+    missing_roles = sorted(set(roles) - set(step_roles))
+    if missing_roles:
+        raise FactoryError(f"recipe {name}.steps omits role(s): {', '.join(missing_roles)}")
+    last_implementation = max(index for index, role in enumerate(step_roles) if role == "implementer")
+    if "reviewer" not in step_roles[last_implementation + 1:]:
+        raise FactoryError(f"recipe {name}.steps requires review after the final implementation")
     invariants = _string_list(recipe["invariants"], f"recipe {name}.invariants")
     missing = sorted(RECIPE_INVARIANTS - set(invariants))
     if missing:
@@ -598,7 +631,7 @@ def build_plan(
 
 
 def _print_json(value: object) -> None:
-    print(json.dumps(value, indent=2, sort_keys=True))
+    print(json.dumps(value, indent=2, sort_keys=True, allow_nan=False))
 
 
 def _format_success(kind: str, path: pathlib.Path, output_format: str, **extra: Any) -> None:

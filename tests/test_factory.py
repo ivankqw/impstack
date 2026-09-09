@@ -223,6 +223,52 @@ class FactoryCliTests(unittest.TestCase):
         self.assertEqual(completed.returncode, 2)
         self.assertIn("unknown key", json.loads(completed.stdout)["error"])
 
+    def test_nonfinite_json_numbers_are_rejected(self) -> None:
+        for token in ("NaN", "Infinity", "-Infinity", "1e999"):
+            with self.subTest(token=token):
+                config = self.load_json(CONFIG_PATH)
+                config["profiles"]["caller-planner"]["options"]["harness_options"] = {"temperature": "NUMBER_TOKEN"}
+                path = self.sandbox / "nonfinite.json"
+                path.write_text(json.dumps(config).replace('"NUMBER_TOKEN"', token))
+                completed = self.run_factory("validate", str(path), "--format", "json")
+                self.assertEqual(completed.returncode, 2)
+                self.assertIn("non-finite JSON number", json.loads(completed.stdout)["error"])
+
+    def test_duplicate_json_keys_are_rejected(self) -> None:
+        path = self.sandbox / "duplicate.json"
+        original = CONFIG_PATH.read_text()
+        anchor = '"name": "reviewed-change"'
+        self.assertEqual(original.count(anchor), 1)
+        path.write_text(original.replace(anchor, anchor + ', "name": "hidden-replacement"'))
+        completed = self.run_factory("validate", str(path), "--format", "json")
+        self.assertEqual(completed.returncode, 2)
+        self.assertIn("duplicate JSON key", json.loads(completed.stdout)["error"])
+
+    def test_recipe_requires_role_coverage_and_final_review(self) -> None:
+        for role in ("orchestrator", "implementer", "reviewer"):
+            with self.subTest(missing_role=role):
+                config = self.load_json(CONFIG_PATH)
+                recipe = config["recipes"]["reviewed-change"]
+                recipe["steps"] = [step for step in recipe["steps"] if step["role"] != role]
+                completed = self.run_factory("validate", str(self.write_json("missing-role.json", config)))
+                self.assertEqual(completed.returncode, 2)
+                self.assertIn("omits role(s)", completed.stderr)
+
+        config = self.load_json(CONFIG_PATH)
+        steps = config["recipes"]["reviewed-change"]["steps"]
+        steps[1], steps[2] = steps[2], steps[1]
+        completed = self.run_factory("validate", str(self.write_json("early-review.json", config)))
+        self.assertEqual(completed.returncode, 2)
+        self.assertIn("requires review after the final implementation", completed.stderr)
+
+    def test_hybrid_can_use_a_terminal_coordinator(self) -> None:
+        config = self.load_json(CONFIG_PATH)
+        config["assignments"]["hybrid"]["roles"].update(
+            orchestrator="herdr-planner", implementer="native-implementer"
+        )
+        completed = self.run_factory("validate", str(self.write_json("inverse-hybrid.json", config)))
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+
     def test_idle_result_and_unbound_result_fail(self) -> None:
         result = self.load_json(RESULT_PATH)
         result["status"] = "idle"

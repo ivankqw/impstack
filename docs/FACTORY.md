@@ -45,6 +45,8 @@ Use herdr-cli only with claude-code, codex-cli, or opencode.
 A hybrid assignment includes at least one native Codex app profile and one Herdr terminal profile.
 
 The validator rejects missing profiles, unknown roles, invalid transport pairings, and reviewer identity conflicts.
+Recipe steps must use every declared role and include review after the final implementation step.
+JSON records must have unique object keys and finite numeric values.
 When a reviewer sets cross_vendor to true, it must use a different provider from the implementer.
 harness_options and provider_options are free-form data for the selected harness.
 The validator does not treat model names or option values as available capabilities.

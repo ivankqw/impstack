@@ -4,7 +4,7 @@
 
 Impstack defines how agents receive work, isolate changes, report evidence, and review each other.
 Choose agent profiles independently of the workflow. Use native Codex app tools, terminal agents
-through Herdr, or an app coordinator with terminal implementation lanes.
+through Herdr, or a hybrid assignment that mixes both. The hybrid example uses an app coordinator with terminal implementation lanes.
 
 The harness owns execution, permissions, authentication, and context. Impstack supplies configuration
 validation and task handoffs. It does not start a replacement agent runtime.
