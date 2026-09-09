@@ -1731,6 +1731,8 @@ class SkillMetadataTest(unittest.TestCase):
         )
 
         self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        self.assertIn("install steps complete", result.stdout)
+        self.assertNotIn("Merge the settings templates by hand", result.stdout)
         self.assertFalse((home / "skills-lock.json").exists())
         claude_args = (home / "claude-mcp.args").read_text()
         self.assertIn(
