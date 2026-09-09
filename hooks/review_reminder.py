@@ -16,9 +16,9 @@ import sys
 
 REVIEW = (
     "Review gate (advisory): this push ships work. Review it BEFORE the push.\n"
-    "Dispatch the reviewer agent (Sonnet) as a fresh subagent with no memory of "
-    "this conversation. A mechanism that shares this session's context inherits "
-    "the author's blind spots along with it.\n"
+    "Use the selected reviewer profile, or the active preset reviewer when no factory plan is selected. Start it as a fresh "
+    "independent context with no memory of this conversation. A mechanism that "
+    "shares this session's context inherits the author's blind spots along with it.\n"
     "Do NOT tell it to skip what you already verified: a happy path checked by a "
     "test that mocks the broken thing is exactly where a shared blind spot hides."
 )

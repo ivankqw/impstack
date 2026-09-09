@@ -1,5 +1,9 @@
 # pstack model configuration
 
+These routing values are fallback choices for pstack tasks without a selected factory profile.
+For a selected factory plan, use its role profile subject to active instructions and available capabilities.
+Report a conflict or unavailable model; do not silently substitute these defaults.
+
 These values override the Claude model defaults in pstack skills. Codex loads this sheet through the
 generated global `AGENTS.md`. The panel models use confirmed Codex slugs from this setup.
 

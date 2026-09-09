@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "kind": "factory-brief",
+  "task_id": "issue-45",
+  "objective": "Add composable factory recipes with validated handoffs.",
+  "worktree": "<caller-supplied-worktree>",
+  "branch": "feat/45-composable-factory",
+  "base_commit": "<caller-supplied-base-commit>",
+  "acceptance": [
+    "Validate profiles, recipes, assignments, and role references.",
+    "Emit a declarative plan for native, Herdr, and hybrid callers.",
+    "Record result evidence and unresolved work."
+  ],
+  "checks": [
+    {
+      "command": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_factory.py"
+      ],
+      "purpose": "Run the factory CLI tests."
+    }
+  ],
+  "constraints": [
+    "Use the standard library only.",
+    "Do not install modules or dispatch sessions from the planner."
+  ],
+  "recipe": "reviewed-change",
+  "assignment": "hybrid",
+  "transport": "hybrid",
+  "roles": {
+    "orchestrator": "caller-planner",
+    "implementer": "herdr-implementer",
+    "reviewer": "caller-reviewer"
+  }
+}

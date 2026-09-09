@@ -1,5 +1,20 @@
 # Configs
 
+## Executable factory configurations
+
+Use [factory configuration](../docs/FACTORY.md) for modular role assignments and execution handoffs.
+`bin/factory` consumes the JSON examples under `configs/factory/`.
+The recipe stays separate from agent profiles, so changing a model does not change the workflow.
+
+The selected plan takes precedence over the legacy examples below.
+Active system, user, repository, and permission instructions still apply.
+The CLI validates declared choices; it does not commission or dispatch an agent.
+
+## Legacy personal presets
+
+The YAML files below are prose presets for agents. The installer does not parse them.
+They remain available for existing installations and do not define factory-wide requirements.
+
 A config assigns a harness, model, and effort level to each role for one stretch of work. Choose the
 config before work starts. Record any fallback in the pull request.
 
@@ -34,7 +49,7 @@ open a draft pull request. Keep reviewers out of the shared checkout.
 Use `single-vendor` only as the no-Claude fallback. Its reviewer uses different Codex weights from
 the author and receives no shared context.
 
-## Price reference
+## Historical price reference
 
 The following prices are US dollars per million tokens. The values come from the Anthropic pricing
 page, checked 2026-09-03.
