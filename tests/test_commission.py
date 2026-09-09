@@ -444,6 +444,34 @@ class CommissionTests(unittest.TestCase):
         ):
             self.assertEqual(report[assertion_id]["status"], "fail")
 
+    def test_opencode_mcp_listing_on_stderr_matches_contract(self) -> None:
+        self.write_executable(
+            self.fakebin / "opencode",
+            textwrap.dedent(
+                """\
+                case "${1:-}" in
+                  --version) printf 'opencode 1.2.3\n' ;;
+                  auth) printf 'authenticated\n' ;;
+                  mcp) printf 'context7 exa linear-server executor\n' >&2 ;;
+                  *) printf '%s\n' '{"type":"text","part":{"type":"text","text":"LOADED"}}' ;;
+                esac
+                """
+            ),
+        )
+
+        result = self.run_commission("check", "--format", "json")
+
+        report = {
+            item["id"]: item for item in json.loads(result.stdout)["assertions"]
+        }
+        for assertion_id in (
+            "mcp.context7.opencode",
+            "mcp.exa.opencode",
+            "mcp.linear-server.opencode",
+            "mcp.executor.opencode",
+        ):
+            self.assertEqual(report[assertion_id]["status"], "pass")
+
     def test_opencode_mcp_entries_have_no_unsupported_registration_boundary(self) -> None:
         contract = json.loads(CONTRACT.read_text())
         assertions = (
