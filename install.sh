@@ -44,6 +44,15 @@ run_install_step() {
   "$function_name"
 }
 
+harness_detected() {
+  local expected installed
+  expected="$1"
+  for installed in "${detected_harnesses[@]}"; do
+    [ "$installed" = "$expected" ] && return 0
+  done
+  return 1
+}
+
 selected_entry=""
 NO_HARNESS=false
 FORCE=false
@@ -202,6 +211,9 @@ done
 for f in "$PSTACK_PROMPTS"/*.md; do
   link "$f" "$CODEX_DIR/prompts/$(basename "$f")"
 done
+if harness_detected opencode; then
+  python3 "$AC/scripts/opencode_config.py" --home "$HOME" skills --shared "$SHARED_SKILLS"
+fi
 }
 
 install_step_constraining() {
@@ -225,6 +237,10 @@ elif [ -e "$STALE_HOOK" ]; then
 fi
 for f in "$AC"/hooks/*;      do link "$f" "$CLAUDE_DIR/hooks/$(basename "$f")"; done
 for f in "$AC"/hooks/*;      do link "$f" "$CODEX_DIR/hooks/$(basename "$f")"; done
+if harness_detected opencode; then
+  python3 "$AC/scripts/opencode_config.py" --home "$HOME" reviewer \
+    --source "$AC/agents/reviewer.md"
+fi
 }
 
 install_step_bin() {
@@ -253,6 +269,10 @@ managed_args=(--root "$AC" --home "$HOME" --private "$PRIVATE")
 python3 "$AC/scripts/managed_instructions.py" "${managed_args[@]}" || instruction_status=$?
 link "$HOME/AGENTS.md" "$CODEX_DIR/AGENTS.md"
 link "$AC/configs/pstack-codex.md" "$CODEX_DIR/pstack-models.md"
+if harness_detected opencode; then
+  python3 "$AC/scripts/opencode_config.py" --home "$HOME" instructions \
+    --source "$HOME/AGENTS.md"
+fi
 return "$instruction_status"
 }
 
@@ -261,7 +281,9 @@ if [ -f "$AC/mcp/servers.json" ]; then
   local -a mcp_args
   mcp_args=("$AC/mcp/servers.json")
   if [ "${detected_harnesses[0]+present}" = present ]; then
-    mcp_args+=("${detected_harnesses[@]}")
+    for harness in "${detected_harnesses[@]}"; do
+      [ "$harness" = opencode ] || mcp_args+=("$harness")
+    done
   fi
   python3 - "${mcp_args[@]}" <<'PY'
 import json, os, subprocess, sys
@@ -304,12 +326,9 @@ for s in json.load(open(sys.argv[1]))["servers"]:
     url = os.environ.get(s["url_env"]) if "url_env" in s else s["url"]
     env = s.get("header_env")
     for harness in harnesses:
-      label = {"claude": "Claude", "codex": "Codex", "opencode": "OpenCode"}[harness]
+      label = {"claude": "Claude", "codex": "Codex"}[harness]
       if not url:
         print(f"  skipped {name} for {label}: ${s['url_env']} not set")
-        continue
-      if harness == "opencode":
-        print(f"  unsupported {name} for OpenCode: MCP add is interactive only")
         continue
       if harness == "claude":
         if env and not os.environ.get(env):
@@ -343,6 +362,10 @@ for s in json.load(open(sys.argv[1]))["servers"]:
 if failed:
     raise SystemExit(1)
 PY
+  if harness_detected opencode; then
+    python3 "$AC/scripts/opencode_config.py" --home "$HOME" mcp \
+      --servers "$AC/mcp/servers.json"
+  fi
 fi
 }
 
