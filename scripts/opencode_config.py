@@ -202,8 +202,12 @@ def add_instructions(config: dict[str, Any], instructions: pathlib.Path) -> None
 
 def add_primary_permissions(config: dict[str, Any]) -> None:
     existing = config.get("permission", {})
+    if isinstance(existing, str) and existing in {"allow", "ask", "deny"}:
+        return
     if not isinstance(existing, dict):
-        raise OpenCodeConfigError("invalid OpenCode config: permission must be an object")
+        raise OpenCodeConfigError(
+            "invalid OpenCode config: permission must be allow, ask, deny, or an object"
+        )
     if "*" not in existing:
         config["permission"] = {"*": "ask", **existing}
 
