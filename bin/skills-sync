@@ -210,12 +210,14 @@ def load_catalog(root: pathlib.Path) -> dict[str, dict[str, str]]:
     return skills
 
 
-def validation_problems(root: pathlib.Path, shared: pathlib.Path) -> list[str]:
+def validation_problems(
+    root: pathlib.Path, shared: pathlib.Path, excluded: frozenset[str] = frozenset()
+) -> list[str]:
     catalog = load_catalog(root)
     ignore_patterns = load_ignore_patterns(root)
     problems: list[str] = []
     for name in sorted(catalog):
-        if is_ignored(name, ignore_patterns):
+        if name in excluded or is_ignored(name, ignore_patterns):
             continue
         skill_dir = shared / name
         if not skill_dir.is_dir():
@@ -238,8 +240,8 @@ def validation_problems(root: pathlib.Path, shared: pathlib.Path) -> list[str]:
     return problems
 
 
-def check(root: pathlib.Path) -> int:
-    problems = validation_problems(root, shared_skills_root())
+def check(root: pathlib.Path, excluded: frozenset[str] = frozenset()) -> int:
+    problems = validation_problems(root, shared_skills_root(), excluded)
     if problems:
         for problem in problems:
             print(problem)
@@ -472,12 +474,16 @@ def has_required_skill_frontmatter(path: pathlib.Path) -> bool:
     return fields == {"name", "description"}
 
 
-def install_missing(root: pathlib.Path) -> int:
+def install_missing(root: pathlib.Path, excluded: frozenset[str] = frozenset()) -> int:
     shared = shared_skills_root()
     shared.mkdir(mode=0o700, parents=True, exist_ok=True)
     shared.chmod(0o700)
     catalog = load_catalog(root)
-    missing = [(name, entry) for name, entry in catalog.items() if not (shared / name / "SKILL.md").is_file()]
+    missing = [
+        (name, entry)
+        for name, entry in catalog.items()
+        if name not in excluded and not (shared / name / "SKILL.md").is_file()
+    ]
     if not missing:
         return 0
     prepare_cli_state()
@@ -646,12 +652,14 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     subparsers = parser.add_subparsers(dest="command", required=True)
     normalize_parser = subparsers.add_parser("normalize")
     normalize_parser.add_argument("--allow-removals", action="store_true")
-    subparsers.add_parser("check")
+    check_parser = subparsers.add_parser("check")
+    check_parser.add_argument("--exclude", action="append", default=[])
     run_parser = subparsers.add_parser("run")
     run_parser.add_argument("--no-update", action="store_true")
     run_parser.add_argument("--no-push", action="store_true")
     subparsers.add_parser("schedule")
-    subparsers.add_parser("install-missing", help="Restore absent catalog entries.")
+    install_parser = subparsers.add_parser("install-missing", help="Restore absent catalog entries.")
+    install_parser.add_argument("--exclude", action="append", default=[])
     subparsers.add_parser("resolve-npx", help="Print the resolved npx executable.")
     subparsers.add_parser("resolve-node", help="Print the resolved node executable.")
     subparsers.add_parser("resolve-shared", help="Print the shared skills directory.")
@@ -668,12 +676,12 @@ def main(argv: list[str]) -> int:
             normalize(repo_root(), allow_removals=args.allow_removals)
             return 0
         if args.command == "check":
-            return check(repo_root())
+            return check(repo_root(), frozenset(args.exclude))
         if args.command == "schedule":
             schedule(repo_root())
             return 0
         if args.command == "install-missing":
-            return install_missing(repo_root())
+            return install_missing(repo_root(), frozenset(args.exclude))
         if args.command == "resolve-npx":
             print(resolve_npx())
             return 0

@@ -28,7 +28,7 @@ list_install_steps() {
 }
 
 print_install_help() {
-  echo "usage: ./install.sh [--no-harness] [--force] [--list|--help|<step>]"
+  echo "usage: ./install.sh [--no-harness] [--with-herdr] [--force] [--list|--help|<step>]"
   echo
   echo "A single step always runs preflight first."
   echo
@@ -55,11 +55,14 @@ harness_detected() {
 
 selected_entry=""
 NO_HARNESS=false
+WITH_HERDR=false
 FORCE=false
 action=""
 for argument in "$@"; do
   if [ "$argument" = "--no-harness" ]; then
     NO_HARNESS=true
+  elif [ "$argument" = "--with-herdr" ]; then
+    WITH_HERDR=true
   elif [ "$argument" = "--force" ]; then
     FORCE=true
   elif [ -n "$action" ]; then
@@ -154,7 +157,10 @@ link() { # link <target> <linkname>
 }
 
 install_step_skills() {
-if ! "$AC/bin/skills-sync" install-missing; then
+local -a catalog_args
+catalog_args=()
+[ "$WITH_HERDR" = false ] && catalog_args+=(--exclude herdr)
+if ! "$AC/bin/skills-sync" install-missing "${catalog_args[@]}"; then
   echo "  ! some cataloged skills could not be restored; continuing install" >&2
 fi
 for d in "$AC"/skills/*/; do
@@ -481,7 +487,10 @@ fi
 }
 
 install_step_validating_catalog() {
-"$AC/bin/skills-sync" check
+local -a catalog_args
+catalog_args=()
+[ "$WITH_HERDR" = false ] && catalog_args+=(--exclude herdr)
+"$AC/bin/skills-sync" check "${catalog_args[@]}"
 }
 
 if [ -z "$action" ]; then
