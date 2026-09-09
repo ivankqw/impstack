@@ -105,6 +105,34 @@ Treat a missing phrase, model, or skill as an install failure. Run `~/impstack/i
 its Codex settings report. Merge any missing setting from
 `settings/codex.config.template.toml`, restart Codex, and repeat the check.
 
+## Verify OpenCode
+
+The installer updates the global OpenCode config when `opencode` is on `PATH`. The default path is
+`~/.config/opencode/opencode.json`. `XDG_CONFIG_HOME` replaces `~/.config` when you set it.
+
+The config loads the generated `~/AGENTS.md`. OpenCode reads the default `~/.agents/skills`
+directory without another link. If `SHARED_SKILLS` sets another directory, the installer links it
+at `~/.config/opencode/skills` or the matching XDG path.
+
+Run the canary outside any project:
+
+```bash
+cd /tmp
+opencode run --format json "Do not use tools. If your instructions contain 'A virtue cannot be graded', write LOADED, else write MISSING."
+```
+
+The output contains JSON events. The expected text event has `part.text` set to `LOADED`.
+
+`MISSING` means OpenCode did not load the generated instructions. Run
+`~/impstack/install.sh instructions`, then repeat the canary.
+
+Run `opencode mcp list` to check the installed MCP names. The installer writes remote entries to the
+global config because `opencode mcp add` is interactive. It writes environment references instead
+of credentials. It omits `executor` when `EXECUTOR_MCP_URL` is not set.
+
+The installer writes the reviewer to the global `agents` directory. The reviewer denies the edit
+permission. OpenCode selects its model because the source model and effort values apply to Claude Code.
+
 ## Try Hermes Agent experimentally
 
 Hermes support is experimental. `bootstrap.sh` and `install.sh` do not configure Hermes.
@@ -167,8 +195,8 @@ steps and returns a nonzero status after they finish. Examine the backup before 
 `./install.sh --force`.
 The installer keeps the five most recent backups for each managed file.
 
-Run the Claude Code and Codex verification checks after an update. Repeat the Hermes canary if you
-use the experimental setup.
+Run the Claude Code, Codex, and OpenCode verification checks after an update. Repeat the Hermes
+canary if you use the experimental setup.
 
 ## Uninstall the setup
 
@@ -194,5 +222,9 @@ pstack checkout. Keep regular files and unrelated links.
 Examine `~/.claude/CLAUDE.md` and `~/AGENTS.md`. Remove them if they contain the generated imports or
 header from `install.sh`. The installer does not edit `~/.claude/settings.json` or
 `~/.codex/config.toml`, so remove their merged entries by hand.
+
+Examine `${XDG_CONFIG_HOME:-$HOME/.config}/opencode`. Remove the `~/AGENTS.md` instruction and the
+impstack MCP entries from `opencode.json`. Remove `agents/reviewer.md`. Remove the `skills` link only
+when it points to the configured shared skills directory.
 
 Delete the repository and pstack checkout after no remaining link points into them.

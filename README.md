@@ -38,7 +38,7 @@ flowchart LR
     SL --> MR
     MR --> RE["backpass / reflect<br/>retro<br/>transcript findings<br/>operator-gated convention and skill edits"]
     RE --> OP["Operator<br/>hand-off point<br/>explanation gates<br/>planned"]
-    HA["Harness<br/>Claude Code or Codex<br/>Hermes experimental"] -. runs .-> HE
+    HA["Harness<br/>Claude Code, Codex, or OpenCode<br/>Hermes experimental"] -. runs .-> HE
     EX["Executor<br/>agent-connection catalogue"] -. supplies tools .-> HE
     WB["Web tooling<br/>chrome-devtools-mcp"] -. supplies browser access .-> HE
     MO["Report monitors<br/>sentinel watchers"] -. observes completion .-> HE
@@ -54,7 +54,7 @@ flowchart LR
 | Keep release judgment human | Merge and release | Operator tags | Fixed | Private layer |
 | Feed corrections back | Retro | backpass and `reflect` surface transcript findings for operator-gated convention and skill edits | Fixed | [`conventions/AGENTS.md`](conventions/AGENTS.md), [`pstack-revision.txt`](pstack-revision.txt), and the private layer |
 | Return control at junctions | Hand-off point | Operator explanation gates, planned | Fixed | Private layer |
-| Choose the runtime per environment | Supporting layer: harness | Claude Code or Codex; Hermes is experimental `[unverified]` | Flexible | [`configs/`](configs/), [`settings/`](settings/), and the private layer |
+| Choose the runtime per environment | Supporting layer: harness | Claude Code, Codex, or OpenCode. Hermes is experimental `[unverified]` | Flexible | [`configs/`](configs/), [`settings/`](settings/), and the private layer |
 | Carry one tool catalogue | Supporting layer: agent connections | Executor Cloud through MCP | Fixed | [`mcp/servers.json`](mcp/servers.json) |
 | Give lanes browser access | Supporting layer: web tooling | `chrome-devtools-mcp` | Flexible | [`skills/browser-tooling/`](skills/browser-tooling/) |
 | Observe lane completion | Supporting layer: report monitors | Report and pull-request sentinel watchers | Fixed | [`skills/lane-orchestration/`](skills/lane-orchestration/) |

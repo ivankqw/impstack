@@ -1,8 +1,8 @@
 # How the setup works
 
-I use one repository to shape two agent harnesses. Claude Code and Codex have different instruction
-and extension systems, so `install.sh` gives both harnesses the same working method. The design keeps
-stable rules in a small convention file and loads detailed procedures as skills.
+I use one repository to shape three agent harnesses. Claude Code, Codex, and OpenCode have different
+instruction and extension systems. `install.sh` gives all three harnesses the same working method.
+The design keeps stable rules in a small convention file. It loads detailed procedures as skills.
 
 ## The base model supplies general capability
 
@@ -17,7 +17,8 @@ the no-Claude fallback. The config selects models for roles, while the harness o
 
 Each session receives the portable conventions from `conventions/AGENTS.md`. Claude Code reads a
 symlink through an `@import`. Codex reads a generated `~/AGENTS.md` because its documented behavior
-does not include Claude imports. `install.sh` creates both forms in its `instruction files` block.
+does not include Claude imports. OpenCode loads that generated file through its global `instructions`
+array. `install.sh` creates these forms in its `instructions` step.
 
 The convention file stays below 200 lines. `MAINTAINING.md` records that ceiling and asks one
 question of each line. Would removing the line cause a mistake? The ceiling protects model attention
@@ -35,7 +36,8 @@ steps for one kind of work. This progressive disclosure keeps narrow guidance ou
 
 I keep own skills under `skills/`. The current set includes `cleanup-crew` and `dogfood-local`.
 `install.sh` links each own skill into `~/.agents/skills`. It links that shared directory into
-Claude Code.
+Claude Code. OpenCode reads the default shared directory without another link. If `SHARED_SKILLS`
+sets another directory, the installer links that directory into OpenCode's global config directory.
 
 I consume upstream skills from their source origin. `skills-catalog.json` records the stable source
 fields. `bin/skills-sync` restores missing skills and updates installed skills. The repository does
@@ -60,6 +62,10 @@ Herdr runs Codex implementation agents in observable terminal panes. `skills-cat
 
 An agent definition gives one role its own prompt and model. `agents/reviewer.md` defines the Sonnet
 reviewer for the default review lane. `install.sh` links agent definitions into `~/.claude/agents`.
+It renders the same prompt at `~/.config/opencode/agents/reviewer.md` for OpenCode.
+
+The OpenCode reviewer uses `mode: subagent` and denies edits. The renderer removes the Claude model
+and effort fields. OpenCode selects a model from its own config.
 
 The reviewer must not use the model that wrote the change. `conventions/AGENTS.md` states the rule,
 and `configs/README.md` explains the reason. Models can share blind spots with another run of the
@@ -98,15 +104,19 @@ registrations that an operator must merge.
 ## MCP declarations keep credentials outside Git
 
 `mcp/servers.json` declares MCP server names and URLs. A server can name a header environment
-variable through `header_env`. The installer skips that server when the variable has no value.
+variable through `header_env`. The Claude installer skips that server when the variable has no value.
 
 A tenant URL identifies an account, so the executor declaration uses `url_env` with
 `EXECUTOR_MCP_URL`. The installer reads the URL from the environment and skips the server when the
 variable has no value. The file stores no API key or tenant URL.
 
-The MCP installation block calls both the Claude and Codex CLIs when they are present. Codex accepts
-bearer-token environment variables, but it cannot reproduce arbitrary HTTP header names. The
-installer prints a skip reason for those entries.
+The MCP step calls the Claude and Codex CLIs when they are present. Codex accepts bearer-token
+environment variables. It cannot reproduce arbitrary HTTP header names, so the installer prints a
+skip reason for those entries.
+
+The same step merges remote entries into OpenCode's global JSON config. Header and URL values use
+OpenCode environment references. The installer omits an environment-based URL when its variable is
+not set. The merge keeps unrelated user config and does not rewrite unchanged content.
 
 Hermes support remains experimental. `docs/INSTALL.md` describes the manual context, skill, MCP, and
 canary steps. The installer does not edit `~/.hermes/config.yaml`.
