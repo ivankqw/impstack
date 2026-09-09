@@ -44,6 +44,80 @@ def unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     return result
 
 
+def strip_jsonc_comments(raw: str) -> str:
+    output: list[str] = []
+    index = 0
+    in_string = False
+    escaped = False
+    while index < len(raw):
+        character = raw[index]
+        if in_string:
+            output.append(character)
+            if escaped:
+                escaped = False
+            elif character == "\\":
+                escaped = True
+            elif character == '"':
+                in_string = False
+            index += 1
+            continue
+        if character == '"':
+            in_string = True
+            output.append(character)
+            index += 1
+            continue
+        if raw.startswith("//", index):
+            output.extend((" ", " "))
+            index += 2
+            while index < len(raw) and raw[index] not in "\r\n":
+                output.append(" ")
+                index += 1
+            continue
+        if raw.startswith("/*", index):
+            output.extend((" ", " "))
+            index += 2
+            while index < len(raw) and not raw.startswith("*/", index):
+                output.append(raw[index] if raw[index] in "\r\n" else " ")
+                index += 1
+            if index == len(raw):
+                raise OpenCodeConfigError("unterminated JSONC block comment")
+            output.extend((" ", " "))
+            index += 2
+            continue
+        output.append(character)
+        index += 1
+    return "".join(output)
+
+
+def strip_jsonc_trailing_commas(raw: str) -> str:
+    output: list[str] = []
+    in_string = False
+    escaped = False
+    for index, character in enumerate(raw):
+        if in_string:
+            output.append(character)
+            if escaped:
+                escaped = False
+            elif character == "\\":
+                escaped = True
+            elif character == '"':
+                in_string = False
+            continue
+        if character == '"':
+            in_string = True
+            output.append(character)
+            continue
+        if character == ",":
+            following = index + 1
+            while following < len(raw) and raw[following].isspace():
+                following += 1
+            if following < len(raw) and raw[following] in "}]":
+                output.append(" ")
+                continue
+        output.append(character)
+    return "".join(output)
+
+
 def load_mapping(path: pathlib.Path, label: str) -> dict[str, Any]:
     try:
         raw = path.read_text()
@@ -53,7 +127,7 @@ def load_mapping(path: pathlib.Path, label: str) -> dict[str, Any]:
         raise OpenCodeConfigError(f"could not read {label}: {path}: {error}") from None
     try:
         value = json.loads(
-            raw,
+            strip_jsonc_trailing_commas(strip_jsonc_comments(raw)),
             object_pairs_hook=unique_object,
             parse_constant=reject_constant,
         )
