@@ -14,20 +14,10 @@ Its profiles control execution and model selection. The remaining steps describe
 Run each implementation task in its own worktree and Herdr pane. Use your worktree helper so the
 worktree receives its required local configuration.
 
-## Lane operating rules
+## Lane-specific hazards
 
-- Review in a throwaway worktree pinned to the reviewed SHA. Leave the shared checkout untouched.
-  One reviewer's unreverted probe removed a guard from an implementation lane.
-- Re-verify a fix by resuming the same reviewer with the new SHA. It must rerun the probes that
-  found the defect.
 - Mutate one layer at a time. Remove the app check alone, then the database constraint alone. A test
   that fails only when both are absent proves neither layer.
-- After both reviews pass, push the branch and open the draft pull request. Require a
-  one-line pull-request URL sentinel file. Lanes have written reports without pushing or opening a
-  pull request.
-- Monitor report and sentinel files with a persistent monitor. Shell sleep loops die with sessions.
-- Run commands beyond the harness timeout detached. Write their output to a log file because the
-  harness stops long foreground commands.
 - Parallel schema revisions collide on revision numbers. The second lane to merge renumbers its
   revision and rebases.
 
