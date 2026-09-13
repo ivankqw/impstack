@@ -1,0 +1,151 @@
+{
+  "schema_version": 1,
+  "experiment": "astra-vm-source-control",
+  "date": "2026-09-12",
+  "provenance": "Sanitized export of private pilot metrics and corrected review. Raw traces and infrastructure artifacts are withheld.",
+  "selected_limits": {
+    "wall_seconds_per_attempt": 1200,
+    "max_simultaneous_threads": 3,
+    "max_delegation_depth": 1
+  },
+  "attempts": {
+    "impstack": {
+      "elapsed_seconds": 894.446123164962,
+      "sessions": 3,
+      "lead_model": "gpt-6-astra",
+      "lead_reasoning": "high",
+      "aggregate_usage": {
+        "input_tokens": 4652973,
+        "cached_input_tokens": 4305024,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 46403,
+        "reasoning_output_tokens": 17819,
+        "total_tokens": 4699376,
+        "uncached_input_tokens": 347949
+      },
+      "models": [
+        {
+          "model": "gpt-5.6-terra",
+          "usage": {
+            "input_tokens": 591342,
+            "cached_input_tokens": 495616,
+            "cache_write_input_tokens": 0,
+            "output_tokens": 3669,
+            "reasoning_output_tokens": 1316,
+            "total_tokens": 595011
+          }
+        },
+        {
+          "model": "gpt-5.6-luna",
+          "usage": {
+            "input_tokens": 1804943,
+            "cached_input_tokens": 1712896,
+            "cache_write_input_tokens": 0,
+            "output_tokens": 20487,
+            "reasoning_output_tokens": 9928,
+            "total_tokens": 1825430
+          }
+        },
+        {
+          "model": "gpt-6-astra",
+          "usage": {
+            "input_tokens": 2256688,
+            "cached_input_tokens": 2096512,
+            "cache_write_input_tokens": 0,
+            "output_tokens": 22247,
+            "reasoning_output_tokens": 6575,
+            "total_tokens": 2278935
+          }
+        }
+      ]
+    },
+    "baseline": {
+      "elapsed_seconds": 726.388484074967,
+      "sessions": 1,
+      "lead_model": "gpt-6-astra",
+      "lead_reasoning": "high",
+      "aggregate_usage": {
+        "input_tokens": 985238,
+        "cached_input_tokens": 913920,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 20493,
+        "reasoning_output_tokens": 5735,
+        "total_tokens": 1005731,
+        "uncached_input_tokens": 71318
+      },
+      "models": [
+        {
+          "model": "gpt-6-astra",
+          "usage": {
+            "input_tokens": 985238,
+            "cached_input_tokens": 913920,
+            "cache_write_input_tokens": 0,
+            "output_tokens": 20493,
+            "reasoning_output_tokens": 5735,
+            "total_tokens": 1005731
+          }
+        }
+      ]
+    }
+  },
+  "corrected_subjective_rubric": {
+    "scale_per_criterion": [
+      0,
+      4
+    ],
+    "criteria": [
+      "scope",
+      "reproducibility",
+      "safety_and_recovery",
+      "executable_correctness",
+      "maintainability_and_completion"
+    ],
+    "impstack": [
+      4,
+      3,
+      3,
+      3,
+      4
+    ],
+    "baseline": [
+      4,
+      3,
+      3,
+      3,
+      4
+    ]
+  },
+  "auxiliary_usage": {
+    "blind_judge": {
+      "input_tokens": 1429881,
+      "cached_input_tokens": 1323520,
+      "cache_write_input_tokens": 0,
+      "output_tokens": 14346,
+      "reasoning_output_tokens": 5606,
+      "total_tokens": 1444227
+    },
+    "discarded_judge": {
+      "input_tokens": 256922,
+      "cached_input_tokens": 220800,
+      "cache_write_input_tokens": 0,
+      "output_tokens": 1772,
+      "reasoning_output_tokens": 319,
+      "total_tokens": 258694
+    },
+    "smoke": {
+      "input_tokens": 15208,
+      "cached_input_tokens": 12160,
+      "cache_write_input_tokens": 0,
+      "output_tokens": 5,
+      "reasoning_output_tokens": 0,
+      "total_tokens": 15213
+    },
+    "note": "Judge usage sums the initial completed review and resumed packaging correction; resumed CLI counters reset. Candidate counters were checked for resets and had none. Controller conversation and inventory helper usage are not included."
+  },
+  "excluded_from_attempt_totals": [
+    "Controller preparation and conversation",
+    "Inventory helper",
+    "External judging",
+    "Smoke check"
+  ]
+}
