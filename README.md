@@ -118,6 +118,7 @@ I write a skill when no upstream skill covers the job.
 - [Install](docs/INSTALL.md) installs, verifies, updates, and removes the setup.
 - [Credits](docs/CREDITS.md) names upstream authors, sources, and licenses.
 - [Maintaining](MAINTAINING.md) gives repository editing and verification rules.
+- [Experiments](experiments/README.md) records bounded workflow comparisons and their limits.
 
 Fork this setup and overfit it to yourself. Keep what fits your work and replace my assumptions with
 yours.
